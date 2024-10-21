@@ -6,7 +6,7 @@ group = "dev.tmpfs.jvmplant"
 version = "1.0-SNAPSHOT"
 
 dependencies {
-    implementation(projects.jvm.jvmplantShared)
+    api(projects.jvm.jvmplantShared)
     compileOnly(libs.jetbrains.annotations)
 }
 

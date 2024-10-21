@@ -17,12 +17,26 @@ public class DefaultNativeLoaders {
     }
 
     public enum JvmType {
+        /**
+         * Unknown JVM type.
+         */
         UNKNOWN,
+        /**
+         * OpenJDK JVM, the most common JVM.
+         */
         OPENJDK,
+        /**
+         * GraalVM JVM, this implementation does not support full reflection.
+         * So we have no plan to support it.
+         */
         GRAALVM,
+        /**
+         * Dalvik/ART JVM, the Android JVM.
+         * Dalvik 1.x is Dalvik VM, Dalvik 2.x is ART.
+         */
         DALVIK_ART;
 
-        String getShortName() {
+        public String getShortName() {
             switch (this) {
                 case OPENJDK:
                     return "openjdk";
@@ -36,15 +50,10 @@ public class DefaultNativeLoaders {
         }
     }
 
-    public enum SystemType {
-        UNKNOWN,
-        WINDOWS,
-        LINUX,
-        MACOS,
-        ANDROID,
-        BSD;
+    public enum OsType {
+        UNKNOWN, WINDOWS, LINUX, MACOS, ANDROID, BSD;
 
-        String getShortName() {
+        public String getShortName() {
             switch (this) {
                 case WINDOWS:
                     return "win";
@@ -63,17 +72,44 @@ public class DefaultNativeLoaders {
     }
 
     public enum IsaType {
+        /**
+         * Unknown ISA type.
+         */
         UNKNOWN,
+        /**
+         * AArch32, the 32-bit ARM ISA.
+         */
         ARM,
+        /**
+         * AArch64, the 64-bit ARM ISA.
+         */
         ARM64,
+        /**
+         * x86/i386, the 32-bit x86 ISA.
+         */
         X86,
+        /**
+         * x86_64/amd64, the 64-bit x86 ISA.
+         */
         X86_64,
+        /**
+         * The 32-bit MIPS ISA.
+         */
         MIPS,
+        /**
+         * The 64-bit MIPS ISA.
+         */
         MIPS64,
+        /**
+         * The 32-bit RISC-V ISA.
+         */
         RISCV32,
+        /**
+         * The 64-bit RISC-V ISA.
+         */
         RISCV64;
 
-        String getShortName() {
+        public String getShortName() {
             switch (this) {
                 case ARM:
                     return "arm";
@@ -98,13 +134,29 @@ public class DefaultNativeLoaders {
     }
 
     public enum LibcType {
+        /**
+         * Unknown libc type.
+         */
         UNKNOWN,
+        /**
+         * The GNU libc, the most common libc for Linux.
+         */
         GNU,
+        /**
+         * The musl libc, a lightweight libc for Linux.
+         * Distros like Alpine Linux and OpenWrt use it.
+         */
         MUSL,
+        /**
+         * The Bionic libc, the libc for Android.
+         */
         BIONIC,
+        /**
+         * The UCRT and MSVCRT implement C runtime for Windows.
+         */
         UCRT_VCRT;
 
-        String getShortName() {
+        public String getShortName() {
             switch (this) {
                 case GNU:
                     return "gnu";
@@ -120,28 +172,22 @@ public class DefaultNativeLoaders {
         }
     }
 
-
     public static class SystemInfo {
         public final JvmType jvmType;
-        public final SystemType systemType;
+        public final OsType osType;
         public final IsaType isaType;
         public final LibcType libcType;
 
-        public SystemInfo(JvmType jvmType, SystemType systemType, IsaType isaType, LibcType libcType) {
+        public SystemInfo(JvmType jvmType, OsType systemType, IsaType isaType, LibcType libcType) {
             this.jvmType = jvmType;
-            this.systemType = systemType;
+            this.osType = systemType;
             this.isaType = isaType;
             this.libcType = libcType;
         }
 
         @Override
         public String toString() {
-            return "SystemInfo{" +
-                    "jvmType=" + jvmType +
-                    ", systemType=" + systemType +
-                    ", isaType=" + isaType +
-                    ", libcType=" + libcType +
-                    '}';
+            return "SystemInfo{" + "jvmType=" + jvmType + ", systemType=" + osType + ", isaType=" + isaType + ", libcType=" + libcType + '}';
         }
     }
 
@@ -170,18 +216,18 @@ public class DefaultNativeLoaders {
             }
         }
         // 2. check system type
-        SystemType systemType = SystemType.UNKNOWN;
+        OsType systemType = OsType.UNKNOWN;
         String osName = System.getProperty("os.name").toLowerCase();
         if (osName.contains("windows")) {
-            systemType = SystemType.WINDOWS;
+            systemType = OsType.WINDOWS;
         } else if (osName.contains("linux")) {
-            systemType = SystemType.LINUX;
+            systemType = OsType.LINUX;
         } else if (osName.contains("mac")) {
-            systemType = SystemType.MACOS;
+            systemType = OsType.MACOS;
         } else if (osName.contains("bsd")) {
-            systemType = SystemType.BSD;
+            systemType = OsType.BSD;
         } else if (osName.contains("android")) {
-            systemType = SystemType.ANDROID;
+            systemType = OsType.ANDROID;
         }
         // 3. check isa type
         IsaType isaType = IsaType.UNKNOWN;
@@ -197,7 +243,7 @@ public class DefaultNativeLoaders {
         }
         // 4. check libc type, for linux only
         LibcType libcType = LibcType.UNKNOWN;
-        if (systemType == SystemType.LINUX) {
+        if (systemType == OsType.LINUX) {
             // dirty, need to improve
             HashSet<String> files = new HashSet<>();
             // scan /lib and /lib64, starting with ld-
@@ -224,9 +270,9 @@ public class DefaultNativeLoaders {
             } else {
                 libcType = LibcType.GNU;
             }
-        } else if (systemType == SystemType.ANDROID) {
+        } else if (systemType == OsType.ANDROID) {
             libcType = LibcType.BIONIC;
-        } else if (systemType == SystemType.WINDOWS) {
+        } else if (systemType == OsType.WINDOWS) {
             libcType = LibcType.UCRT_VCRT;
         }
         return new SystemInfo(jvmType, systemType, isaType, libcType);
@@ -252,7 +298,7 @@ public class DefaultNativeLoaders {
      */
     @NotNull
     public static String getLibraryDirectoryNameForSystem(SystemInfo info) {
-        return info.jvmType.getShortName() + "-" + info.systemType.getShortName() + "-" + info.isaType.getShortName() + "-" + info.libcType.getShortName();
+        return info.jvmType.getShortName() + "-" + info.osType.getShortName() + "-" + info.isaType.getShortName() + "-" + info.libcType.getShortName();
     }
 
     /**
@@ -345,7 +391,7 @@ public class DefaultNativeLoaders {
 
     public static NativeLibraryLoader getDefaultNativeLibraryLoader() {
         SystemInfo info = getSystemInfo();
-        if (info.systemType == SystemType.ANDROID) {
+        if (info.osType == OsType.ANDROID) {
             return new AndroidNativeLoader();
         } else {
             return new CopyToTempDirLoader(findTemporarilyDirectory());

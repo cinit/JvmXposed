@@ -7,6 +7,7 @@ dependencies {
     implementation(projects.jvm.jvmplantNative)
     implementation(projects.jvm.xposedJvm)
     compileOnly(libs.jetbrains.annotations)
+    testCompileOnly(libs.jetbrains.annotations)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)

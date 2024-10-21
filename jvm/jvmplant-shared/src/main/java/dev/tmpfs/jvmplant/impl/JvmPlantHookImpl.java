@@ -6,8 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.*;
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -100,7 +99,7 @@ public class JvmPlantHookImpl {
         public <T> T newInstanceOrigin(@NotNull Constructor<T> constructor, @NotNull Object... args)
                 throws InvocationTargetException, IllegalArgumentException, IllegalAccessException, InstantiationException {
             checkMemberValid(constructor);
-            T instance = (T) ReflectHelper.allocateInstance(constructor.getDeclaringClass());
+            T instance = ReflectHelper.allocateInstance(constructor.getDeclaringClass());
             invokeOriginalMemberImpl(constructor, instance, args);
             return instance;
         }
@@ -112,7 +111,7 @@ public class JvmPlantHookImpl {
     }
 
     private static Member sCallbackMethod;
-    private static AtomicLong sHookCounter = new AtomicLong(0);
+    private static final AtomicLong sHookCounter = new AtomicLong(0);
 
     private static synchronized void initializeJvmPlantInternal() {
         if (isInitialized) {
@@ -131,7 +130,7 @@ public class JvmPlantHookImpl {
     private static void checkMemberValid(@NotNull Member target) {
         // must be method or constructor
         if (!(target instanceof Method) && !(target instanceof Constructor)) {
-            throw new IllegalArgumentException("Only method or constructor is supported, got " + target);
+            throw new IllegalArgumentException("Only method or constructor can be hooked, got " + target);
         }
         if (target instanceof Method) {
             // non abstract
@@ -141,60 +140,92 @@ public class JvmPlantHookImpl {
         }
     }
 
+    private static HashSet<Class<?>> sBlockedClasses = null;
     private static HashSet<Member> sExemptMembers = null;
-    private static HashSet<Class<?>> sExemptClasses = null;
+
+    private static HashSet<Class<?>> getBlockedClasses() {
+        if (sBlockedClasses == null) {
+            synchronized (JvmPlantHookImpl.class) {
+                if (sBlockedClasses == null) {
+                    HashSet<Class<?>> h = new HashSet<>(32);
+                    h.add(Object.class);
+                    h.add(Objects.class);
+                    h.add(String.class);
+                    h.add(CharSequence.class);
+                    h.add(StringBuilder.class);
+                    h.add(Class.class);
+                    h.add(ClassLoader.class);
+                    h.add(Method.class);
+                    h.add(Constructor.class);
+                    h.add(Executable.class);
+                    h.add(Field.class);
+                    h.add(ConcurrentHashMap.class);
+                    h.add(AbstractMap.class);
+                    h.add(Map.class);
+                    h.add(HashMap.class);
+                    h.add(InvocationTargetException.class);
+                    h.add(ReflectiveOperationException.class);
+                    h.add(Exception.class);
+                    h.add(Throwable.class);
+                    h.add(ClassCastException.class);
+                    h.add(NullPointerException.class);
+                    h.add(RuntimeException.class);
+                    sBlockedClasses = h;
+                }
+            }
+        }
+        return sBlockedClasses;
+    }
 
     private static HashSet<Member> getExemptMembers() {
         if (sExemptMembers == null) {
             synchronized (JvmPlantHookImpl.class) {
                 if (sExemptMembers == null) {
-                    try {
-                        HashSet<Member> h = new HashSet<>(16);
-                        h.add(System.class.getDeclaredMethod("load", String.class));
-                        h.add(System.class.getDeclaredMethod("loadLibrary", String.class));
-                        // add more if you need
-                        sExemptMembers = h;
-                    } catch (NoSuchMethodException e) {
-                        throw ReflectHelper.unsafeThrow(e);
-                    }
+                    // add more if you need
+                    sExemptMembers = new HashSet<>(4);
                 }
             }
         }
         return sExemptMembers;
     }
 
-    private static HashSet<Class<?>> getExemptClasses() {
-        if (sExemptClasses == null) {
-            synchronized (JvmPlantHookImpl.class) {
-                if (sExemptClasses == null) {
-                    HashSet<Class<?>> h = new HashSet<>(16);
-                    // add more if you need
-                    h.add(Runtime.class);
-                    sExemptClasses = h;
-                }
-            }
+    /**
+     * Add a member to the exempt list, this member will be allowed to be hooked.
+     * <p>
+     * Call this by reflection if you REALLY want to hook some system classes.
+     *
+     * @param member the member to be exempted
+     */
+    static void addExemptMember(@NotNull Member member) {
+        Objects.requireNonNull(member, "member");
+        synchronized (JvmPlantHookImpl.class) {
+            getExemptMembers().add(member);
         }
-        return sExemptClasses;
     }
 
     private static void checkHookTarget(@NotNull Member target) {
         checkMemberValid(target);
         Class<?> clazz = target.getDeclaringClass();
         if (clazz.getClassLoader() == Runnable.class.getClassLoader()) {
-            if (getExemptClasses().contains(clazz)) {
-                return;
+            // do not allow hooking some system classes
+            if (clazz == System.class && "arraycopy".equals(target.getName())) {
+                throw new IllegalArgumentException("Hooking System.arraycopy is not allowed");
             }
+            // really, these classes should not be hooked
             if (getExemptMembers().contains(target)) {
                 return;
             }
-            if (clazz.getName().startsWith("java.lang.")) {
-                throw new IllegalArgumentException("Cannot hook java.lang.* classes");
-            } else if (clazz.getName().startsWith("java.util.")) {
-                throw new IllegalArgumentException("Cannot hook java.util.* classes");
+            if (getBlockedClasses().contains(clazz)) {
+                throw new IllegalArgumentException("Hooking system classes " + clazz.getName() + " is not allowed");
             }
         }
-        if (clazz.getName().startsWith("io.github.qauxv.")) {
-            throw new IllegalArgumentException("Cannot hook io.github.qauxv.* classes");
+        if (clazz.getClassLoader() == JvmPlantHookImpl.class.getClassLoader()) {
+            String className = clazz.getName();
+            // dev.tmpfs.jvmplant.* and de.robv.android.xposed.*
+            if (className.startsWith("dev.tmpfs.jvmplant.api.") || className.startsWith("dev.tmpfs.jvmplant.impl.")
+                    || className.startsWith("de.robv.android.xposed.")) {
+                throw new IllegalArgumentException("Hooking JvmPlant or Xposed classes is not allowed");
+            }
         }
     }
 

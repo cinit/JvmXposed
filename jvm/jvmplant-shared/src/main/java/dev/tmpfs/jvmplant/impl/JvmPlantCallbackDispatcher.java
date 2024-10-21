@@ -137,7 +137,7 @@ public class JvmPlantCallbackDispatcher {
             try {
                 callback.callback.beforeHookedMember(param);
             } catch (Throwable t) {
-                ReflectHelper.logError(t);
+                ReflectHelper.logError(JvmPlantCallbackDispatcher.class.getName(), t);
             }
         }
         param.currentIndex = -1;
@@ -156,7 +156,7 @@ public class JvmPlantCallbackDispatcher {
             try {
                 callback.callback.afterHookedMember(param);
             } catch (Throwable t) {
-                ReflectHelper.logError(t);
+                ReflectHelper.logError(JvmPlantCallbackDispatcher.class.getName(), t);
             }
         }
         Object result = param.getResult();

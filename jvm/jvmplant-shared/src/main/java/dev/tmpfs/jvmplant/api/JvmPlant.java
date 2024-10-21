@@ -1,12 +1,11 @@
-package dev.tmpfs.jvmplant;
+package dev.tmpfs.jvmplant.api;
 
-import dev.tmpfs.jvmplant.api.DefaultHookBridge;
-import dev.tmpfs.jvmplant.api.IHookBridge;
+import dev.tmpfs.jvmplant.impl.DefaultLogHandler;
 import dev.tmpfs.jvmplant.impl.DefaultNativeLoaders;
 import dev.tmpfs.jvmplant.impl.JvmPlantHookImpl;
-import dev.tmpfs.jvmplant.nativeloader.NativeLibraryLoader;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
 
 public final class JvmPlant {
 
@@ -16,6 +15,8 @@ public final class JvmPlant {
 
     private static final String LIBRARY_NAME = "jvmplant";
 
+    private static LogHandler sLogHandler = DefaultLogHandler.getInstance();
+
     /**
      * Initialize the hook bridge.
      *
@@ -23,11 +24,12 @@ public final class JvmPlant {
      * @return the hook bridge.
      */
     @NotNull
-    public static IHookBridge initialize(@Nullable NativeLibraryLoader loader) {
+    public static IHookBridge initialize(@NotNull NativeLibraryLoader loader) {
         IHookBridge bridge = DefaultHookBridge.getHookBridge();
         if (bridge != null) {
             return bridge;
         }
+        Objects.requireNonNull(loader, "loader");
         return initializeInternal(loader);
     }
 
@@ -38,11 +40,12 @@ public final class JvmPlant {
      */
     @NotNull
     public static IHookBridge initialize() {
-        return initialize(null);
+        return initialize(DefaultNativeLoaders.getDefaultNativeLibraryLoader());
     }
 
     @NotNull
-    private static IHookBridge initializeInternal(@Nullable NativeLibraryLoader suppliedLoader) {
+    private static IHookBridge initializeInternal(@NotNull NativeLibraryLoader loader) {
+        Objects.requireNonNull(loader, "loader");
         // check security manager, if a security manager exists,
         // we do not allow initializing the hook bridge because allowing an
         //  arbitrary method makes security manager useless
@@ -50,12 +53,19 @@ public final class JvmPlant {
             throw new SecurityException("Cannot initialize hook bridge with security manager");
         }
         // race condition is fine here
-        NativeLibraryLoader nativeLoader = suppliedLoader != null
-                ? suppliedLoader : DefaultNativeLoaders.getDefaultNativeLibraryLoader();
-        nativeLoader.loadLibrary(LIBRARY_NAME, JvmPlant.class);
+        loader.loadLibrary(LIBRARY_NAME, JvmPlant.class);
         // JvmPlantHookImpl.initializeJvmPlantHookBridge will set the DefaultHookBridge
         JvmPlantHookImpl.initializeJvmPlantHookBridge();
         return DefaultHookBridge.requireHookBridge();
+    }
+
+    public static void setLogHandler(@NotNull LogHandler handler) {
+        sLogHandler = Objects.requireNonNull(handler, "handler");
+    }
+
+    @NotNull
+    public static LogHandler getLogHandler() {
+        return sLogHandler;
     }
 
 }

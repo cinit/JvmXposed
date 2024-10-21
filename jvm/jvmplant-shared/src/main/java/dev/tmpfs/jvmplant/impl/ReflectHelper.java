@@ -1,10 +1,12 @@
 package dev.tmpfs.jvmplant.impl;
 
+import dev.tmpfs.jvmplant.api.JvmPlant;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.*;
 import java.util.Objects;
+import java.util.logging.Level;
 
 /**
  * The helper class for JVM plant reflection.
@@ -224,8 +226,8 @@ class ReflectHelper {
         return "L" + type.getName().replace('.', '/') + ";";
     }
 
-    public static void logError(@NotNull Throwable th) {
-
+    public static void logError(@NotNull String tag, @NotNull Throwable th) {
+        JvmPlant.getLogHandler().log(tag, Level.WARNING, null, th);
     }
 
 }

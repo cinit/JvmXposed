@@ -1,6 +1,6 @@
 package dev.tmpfs.jvmplant.impl;
 
-import dev.tmpfs.jvmplant.nativeloader.NativeLibraryLoader;
+import dev.tmpfs.jvmplant.api.NativeLibraryLoader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -102,7 +102,7 @@ public class DefaultNativeLoaders {
         GNU,
         MUSL,
         BIONIC,
-        VCRT;
+        UCRT_VCRT;
 
         String getShortName() {
             switch (this) {
@@ -112,7 +112,7 @@ public class DefaultNativeLoaders {
                     return "musl";
                 case BIONIC:
                     return "bionic";
-                case VCRT:
+                case UCRT_VCRT:
                     return "vcrt";
                 default:
                     return "unknown";
@@ -227,7 +227,7 @@ public class DefaultNativeLoaders {
         } else if (systemType == SystemType.ANDROID) {
             libcType = LibcType.BIONIC;
         } else if (systemType == SystemType.WINDOWS) {
-            libcType = LibcType.VCRT;
+            libcType = LibcType.UCRT_VCRT;
         }
         return new SystemInfo(jvmType, systemType, isaType, libcType);
     }

@@ -69,10 +69,9 @@ class JvmPlantNativeBridge {
      * Get the class initializer, aka, the "<clinit>" method, which is a static constructor without parameters.
      *
      * @param clazz the class to get the class initializer, must not be null
-     * @return the class initializer
-     * @throws NoSuchMethodException if the class initializer is not found
+     * @return the class initializer, or null if the class has no class initializer
      */
-    static native Executable nativeGetClassInitializer(@NotNull Class<?> clazz) throws NoSuchMethodException;
+    static native Executable nativeGetClassInitializer(@NotNull Class<?> clazz);
 
     static native <T> T nativeAllocateInstance(@NotNull Class<T> clazz) throws InstantiationException;
 

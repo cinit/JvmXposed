@@ -1,4 +1,4 @@
-package dev.tmpfs.jvmplant.nativeloader;
+package dev.tmpfs.jvmplant.api;
 
 import org.jetbrains.annotations.NotNull;
 

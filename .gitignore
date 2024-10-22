@@ -51,3 +51,7 @@ bin/
 .cmake/
 CMakeFiles/
 cmake-build-*/
+
+### Test ###
+/test/
+hs_err_pid*.log

@@ -50,6 +50,7 @@ public class HookTests {
         // a = 1, b = 2
         // hooked result = -3
         Method method = DirectMethod.class.getDeclaredMethod("add", int.class, int.class);
+        assertEquals(3, new DirectMethod().add(1, 2));
         XC_MethodHook.Unhook unhook = null;
         try {
             unhook = HookUtils.hookBefore(method, param -> {
@@ -63,6 +64,7 @@ public class HookTests {
                 unhook.unhook();
             }
         }
+        assertEquals(3, new DirectMethod().add(1, 2));
     }
 
     @Test
@@ -71,6 +73,7 @@ public class HookTests {
         // a = 1, b = 2
         // hooked result = -3
         Method method = VirtualMethod.class.getDeclaredMethod("add", int.class, int.class);
+        assertEquals(3, new VirtualMethod().add(1, 2));
         XC_MethodHook.Unhook unhook = null;
         try {
             unhook = HookUtils.hookBefore(method, param -> {
@@ -84,6 +87,7 @@ public class HookTests {
                 unhook.unhook();
             }
         }
+        assertEquals(3, new VirtualMethod().add(1, 2));
     }
 
     @Test
@@ -92,6 +96,7 @@ public class HookTests {
         // a = 1, b = 2
         // hooked result = -3
         Method method = StaticMethod.class.getDeclaredMethod("add", int.class, int.class);
+        assertEquals(3, StaticMethod.add(1, 2));
         XC_MethodHook.Unhook unhook = null;
         try {
             unhook = HookUtils.hookBefore(method, param -> {
@@ -105,6 +110,7 @@ public class HookTests {
                 unhook.unhook();
             }
         }
+        assertEquals(3, StaticMethod.add(1, 2));
     }
 
     @Test
@@ -113,6 +119,7 @@ public class HookTests {
         // v = 1
         // hooked result = -1
         Constructor<ConstructorI> method = ConstructorI.class.getDeclaredConstructor(int.class);
+        assertEquals(2, new ConstructorI(2).value);
         XC_MethodHook.Unhook unhook = null;
         try {
             unhook = HookUtils.hookBefore(method, param -> {
@@ -125,6 +132,7 @@ public class HookTests {
                 unhook.unhook();
             }
         }
+        assertEquals(3, new ConstructorI(3).value);
     }
 
 

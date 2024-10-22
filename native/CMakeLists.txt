@@ -16,6 +16,10 @@ set(CMAKE_CXX_STANDARD 20)
 # C standard should be 18 by default in build.gradle.kts, but we cmake 3.22.1 doesn't support it
 set(CMAKE_C_STANDARD 11)
 
+SET_OPTION(DOBBY_GENERATE_SHARED OFF)
+SET_OPTION(Plugin.SymbolResolver ON)
+add_subdirectory(../libs/Dobby dobby)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=format-invalid-specifier -Werror=return-type -Wno-invalid-offsetof")
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     SET(CLANG_CXX_EXTRA_OPT "-Werror=unknown-warning-option -Werror=format-invalid-specifier -Werror=call-to-pure-virtual-from-ctor-dtor")
@@ -46,10 +50,6 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer")
 add_subdirectory(../libs/fmt fmt)
 
 target_compile_definitions(fmt-header-only INTERFACE FMT_STATIC_THOUSANDS_SEPARATOR=1)
-
-SET_OPTION(DOBBY_GENERATE_SHARED OFF)
-SET_OPTION(Plugin.SymbolResolver ON)
-add_subdirectory(../libs/Dobby dobby)
 
 # set -fomit-frame-pointer for Dobby if ANDROID_ABI is armeabi-v7a
 if ("${ANDROID_ABI}" STREQUAL "armeabi-v7a")

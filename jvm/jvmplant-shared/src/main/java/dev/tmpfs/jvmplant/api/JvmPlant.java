@@ -49,14 +49,19 @@ public final class JvmPlant {
         // check security manager, if a security manager exists,
         // we do not allow initializing the hook bridge because allowing an
         //  arbitrary method makes security manager useless
-        if (System.getSecurityManager() != null) {
-            throw new SecurityException("Cannot initialize hook bridge with security manager");
-        }
+        checkSecurityManager();
         // race condition is fine here
         loader.loadLibrary(LIBRARY_NAME, JvmPlant.class);
         // JvmPlantHookImpl.initializeJvmPlantHookBridge will set the DefaultHookBridge
         JvmPlantHookImpl.initializeJvmPlantHookBridge();
         return DefaultHookBridge.requireHookBridge();
+    }
+
+    @SuppressWarnings({"removal", "RedundantSuppression"})
+    private static void checkSecurityManager() {
+        if (System.getSecurityManager() != null) {
+            throw new SecurityException("Cannot initialize hook bridge with security manager");
+        }
     }
 
     public static void setLogHandler(@NotNull LogHandler handler) {

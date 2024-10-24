@@ -32,9 +32,12 @@ endif ()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CLANG_CXX_EXTRA_OPT} -fPIC -Werror=return-type -Wno-invalid-offsetof")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CLANG_C_EXTRA_OPT} -fPIC -Werror=return-type")
 
-# default visibility protected
+# default visibility protected, but for release build, inline hidden for c++ code to reduce binary size
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=protected")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=protected")
+if (NOT CMAKE_BUILD_TYPE MATCHES Debug)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden")
+endif ()
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384 -Wl,--no-allow-shlib-undefined,--no-undefined -Wl,-z,defs,-z,now,-z,relro")
 
@@ -46,6 +49,9 @@ endif ()
 # add -fno-omit-frame-pointer -Werror=non-virtual-dtor -Werror=delete-non-virtual-dtor
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -Werror=non-virtual-dtor -Werror=delete-non-virtual-dtor")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer")
+
+# prefer static linking libstdc++ and libgcc
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
 
 add_subdirectory(../libs/fmt fmt)
 
@@ -60,8 +66,9 @@ add_library(
         jvmplant
         SHARED
         utils/jni_utils.cc
+        utils/log_common.cc
         jni/jvmplant_bridge.cc
-        openjdkvm/openjdk_hook_impl.cc
+        openjdkvm/openjdkvm_hook_impl.cc
 )
 
 target_include_directories(

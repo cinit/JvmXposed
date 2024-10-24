@@ -15,7 +15,7 @@
 
 #include "utils/jni_utils.h"
 #include "shared/jvmplant_api.h"
-#include "openjdkvm/openjdk_hook_impl.h"
+#include "openjdkvm/openjdkvm_hook_impl.h"
 
 static jvmplant::JvmPlantInterface* sJvmPlant = nullptr;
 
@@ -38,7 +38,7 @@ Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeInitializeJvmPlant
     using namespace jvmplant;
     using namespace jvmplant::util;
     std::string errMsg;
-    auto it = OpenJdkHookImpl::GetOrCreateInstance(env, errMsg);
+    auto it = OpenJdkVmHookImpl::GetOrCreateInstance(env, errMsg);
     if (env->ExceptionCheck()) {
         // return with exception
         return;

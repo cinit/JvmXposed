@@ -88,7 +88,8 @@ public class JvmPlantHookImpl {
         @Override
         public boolean deoptimize(@NotNull Member member) {
             checkMemberValid(member);
-            return JvmPlantNativeBridge.nativeDeoptimizeMethod(member);
+            // no-op
+            return true;
         }
 
         @Nullable
@@ -120,20 +121,13 @@ public class JvmPlantHookImpl {
         }
     }
 
-    private static Member sCallbackMethod;
     private static final AtomicLong sHookCounter = new AtomicLong(0);
 
     private static synchronized void initializeJvmPlantInternal() {
         if (isInitialized) {
             return;
         }
-        try {
-            sCallbackMethod = JvmPlantCallbackToken.class.getDeclaredMethod("callback", Object[].class);
-        } catch (NoSuchMethodException e) {
-            // should not happen, unless R8 is doing something wired
-            throw ReflectHelper.unsafeThrow(e);
-        }
-        JvmPlantNativeBridge.nativeInitializeJvmPlant();
+        JvmPlantHookManager.doInitialize();
         isInitialized = true;
     }
 
@@ -308,11 +302,8 @@ public class JvmPlantHookImpl {
         Class<?> declaringClass = member.getDeclaringClass();
         CallbackListHolder holder;
         synchronized (sRegistryWriteLock) {
-            ConcurrentHashMap<Member, CallbackListHolder> map = sCallbackRegistry.get(declaringClass);
-            if (map == null) {
-                map = new ConcurrentHashMap<>(2);
-                sCallbackRegistry.put(declaringClass, map);
-            }
+            ConcurrentHashMap<Member, CallbackListHolder> map = sCallbackRegistry.computeIfAbsent(declaringClass,
+                    k -> new ConcurrentHashMap<>(2));
             holder = map.get(member);
             if (holder == null) {
                 holder = new CallbackListHolder();
@@ -325,13 +316,7 @@ public class JvmPlantHookImpl {
                 // underlying ArtMethod is not hooked, we need to hook it before adding callback
                 JvmPlantCallbackToken token = new JvmPlantCallbackToken(member);
                 // perform hook
-                Method backup = JvmPlantNativeBridge.nativeHookMethod(member, sCallbackMethod, token);
-                if (backup == null) {
-                    throw new UnsupportedOperationException("JvmPlant failed to hook method: " + member);
-                }
-                backup.setAccessible(true);
-                // hook success, set backup method
-                token.setBackupMember(backup);
+                JvmPlantHookManager.doHookMethod(member, /*sCallbackMethod,*/ token);
                 // add token to holder
                 holder.token = token;
             }
@@ -383,11 +368,6 @@ public class JvmPlantHookImpl {
                 }
                 holder.callbacks = newCallbacks;
             }
-            // if no more callbacks, unhook the method
-            if (holder.callbacks.length == 0) {
-                JvmPlantNativeBridge.nativeUnhookMethod(target);
-                holder.token = null;
-            }
         }
     }
 
@@ -420,8 +400,7 @@ public class JvmPlantHookImpl {
             }
         }
         if (token != null) {
-            Method backup = token.getBackupMember();
-            return backup.invoke(thisObject, args);
+            return ReflectHelper.invokeNonVirtualArtMethodNoDeclaringClassCheck(method, declaringClass, thisObject, args, true);
         } else {
             // method is not hooked, invoke the original method/constructor directly
             return ReflectHelper.invokeNonVirtualArtMethodNoDeclaringClassCheck(method, declaringClass, thisObject, args);
@@ -445,6 +424,5 @@ public class JvmPlantHookImpl {
             return holder.callbacks.clone();
         }
     }
-
 
 }

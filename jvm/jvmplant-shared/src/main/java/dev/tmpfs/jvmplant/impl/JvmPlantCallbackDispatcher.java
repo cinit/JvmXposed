@@ -116,17 +116,19 @@ public class JvmPlantCallbackDispatcher {
     static Object handleCallback(
             @NotNull JvmPlantCallbackToken token,
             @NotNull Member targetMethod,
-            @NotNull Method backupMethod,
-            @NotNull Object[] rawArgs) throws Throwable {
+            @NotNull Object[] idThisArgs) throws Throwable {
         JvmPlantHookImpl.CallbackWrapper[] callbacks = JvmPlantHookImpl.getActiveHookCallbacks(targetMethod);
-        boolean hasThis = (targetMethod instanceof Constructor) || ((targetMethod.getModifiers() & Modifier.STATIC) == 0);
-        Object thisObject = hasThis ? rawArgs[0] : null;
+        boolean hasThis = (targetMethod.getModifiers() & Modifier.STATIC) == 0;
+        Object thisObject = hasThis ? idThisArgs[1] : null;
         Object[] args;
         if (hasThis) {
-            args = new Object[rawArgs.length - 1];
-            System.arraycopy(rawArgs, 1, args, 0, args.length);
+            // [id, this, args...]
+            args = new Object[idThisArgs.length - 2];
+            System.arraycopy(idThisArgs, 2, args, 0, args.length);
         } else {
-            args = rawArgs;
+            // [id, args...]
+            args = new Object[idThisArgs.length - 1];
+            System.arraycopy(idThisArgs, 1, args, 0, args.length);
         }
         JvmPlantHookParam param = new JvmPlantHookParam(targetMethod, args, thisObject);
         // call before callbacks
@@ -143,7 +145,8 @@ public class JvmPlantCallbackDispatcher {
         param.currentIndex = -1;
         if (!param.skipOrigin) {
             try {
-                param.result = backupMethod.invoke(thisObject, args);
+                param.result = ReflectHelper.invokeNonVirtualArtMethodNoDeclaringClassCheck(targetMethod,
+                        targetMethod.getDeclaringClass(), thisObject, args, true);
             } catch (Throwable t) {
                 param.throwable = ReflectHelper.getIteCauseOrSelf(t);
             }

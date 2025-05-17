@@ -6,7 +6,6 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
-import java.lang.reflect.Method;
 
 class JvmPlantNativeBridge {
 
@@ -22,48 +21,22 @@ class JvmPlantNativeBridge {
     static native void nativeInitializeJvmPlant() throws RuntimeException;
 
     /**
-     * Hook a method. This method will replace the target method with the callback method.
-     * <p>
-     * JvmPlant backup is always a method, regardless of the target type being method or constructor.
-     * <p>
-     * The callback method must be a public instance (virtual) method of the context object class,
-     * with Object[] as parameters, and the return type must be Object.
+     * Dump the class file of the given class.
      *
-     * @param target   the method to hook, must not be null
-     * @param callback the method to replace the target method, must not be null
-     * @param context  the context object associated with the hook, must not be null
-     * @return the backup method if the method is hooked successfully, null otherwise
+     * @param clazz the class to dump, must not be null
+     * @return the class file as a byte array
      * @throws RuntimeException if any error occurs
      */
-    @Nullable
-    static native Method nativeHookMethod(@NotNull Member target, @NotNull Member callback, @NotNull Object context) throws RuntimeException;
+    static native byte @NotNull [] nativeGetClassFile(@NotNull Class<?> clazz) throws RuntimeException;
 
     /**
-     * Check if a method is hooked.
+     * Redefine the class with the given class file.
      *
-     * @param target the method to check, must not be null
-     * @return true if the method is hooked, false otherwise
+     * @param clazz     the class to redefine, must not be null
+     * @param classFile the class file as a byte array, must not be null
      * @throws RuntimeException if any error occurs
      */
-    static native boolean nativeIsMethodHooked(@NotNull Member target) throws RuntimeException;
-
-    /**
-     * Unhook a method, which means the method will be restored to its original implementation.
-     *
-     * @param target the method to unhook, must not be null
-     * @return true if the method is unhooked successfully, false otherwise (e.g., the method is not hooked)
-     * @throws RuntimeException if any error occurs
-     */
-    static native boolean nativeUnhookMethod(@NotNull Member target) throws RuntimeException;
-
-    /**
-     * Deoptimize a method, which means the method will be restored to interpreter mode.
-     *
-     * @param target the method to deoptimize, must not be null
-     * @return true if the method is deoptimized successfully, false otherwise
-     * @throws RuntimeException if any error occurs
-     */
-    static native boolean nativeDeoptimizeMethod(@NotNull Member target) throws RuntimeException;
+    static native void nativeRedefineClass(@NotNull Class<?> clazz, byte @NotNull [] classFile) throws RuntimeException;
 
     /**
      * Get the class initializer, aka, the "<clinit>" method, which is a static constructor without parameters.
@@ -77,6 +50,6 @@ class JvmPlantNativeBridge {
 
     // If the method signature does not match the actual method signature, the behavior is undefined, e.g., ART runtime aborts.
     static native Object invokeNonVirtualArtMethodImpl(@NotNull Member member, @NotNull String signature, @NotNull Class<?> klass,
-                                                       boolean isStatic, @Nullable Object obj, @NotNull Object[] args) throws InvocationTargetException;
+                                                       boolean isStatic, @Nullable Object obj, Object @NotNull [] args) throws InvocationTargetException;
 
 }

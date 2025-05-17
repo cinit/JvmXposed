@@ -7,6 +7,9 @@ version = "1.0-SNAPSHOT"
 
 dependencies {
     compileOnly(libs.jetbrains.annotations)
+    implementation(libs.byte.buddy)
+    implementation(libs.ow2.asm.asm)
+    implementation(libs.ow2.asm.util)
 }
 
 // java 8

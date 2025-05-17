@@ -3,6 +3,7 @@ package dev.tmpfs.jvmplant.impl;
 import dev.tmpfs.jvmplant.api.JvmPlant;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import sun.misc.Unsafe;
 
 import java.lang.reflect.*;
 import java.util.Objects;
@@ -128,7 +129,8 @@ class ReflectHelper {
      * @throws InvocationTargetException if the method threw an exception
      */
     public static Object invokeNonVirtualArtMethodNoDeclaringClassCheck(@NotNull Member member, @NotNull Class<?> declaringClass,
-                                                                        @Nullable Object obj, @Nullable Object[] args) throws InvocationTargetException {
+                                                                        @Nullable Object obj, @Nullable Object[] args,
+                                                                        boolean setInvokeOrigin) throws InvocationTargetException {
         Objects.requireNonNull(member, "member must not be null");
         Objects.requireNonNull(declaringClass, "declaringClass must not be null");
         if (args == null) {
@@ -151,6 +153,9 @@ class ReflectHelper {
             }
             boolean isStatic = Modifier.isStatic(method.getModifiers());
             String signature = getMethodTypeSignature(method);
+            if (setInvokeOrigin) {
+                JvmPlantTrampoline0.invokeOriginalMethodForNextInvocation(true);
+            }
             return JvmPlantNativeBridge.invokeNonVirtualArtMethodImpl(member, signature, declaringClass, isStatic, obj, args);
         } else if (member instanceof Constructor) {
             Constructor<?> constructor = (Constructor<?>) member;
@@ -158,12 +163,31 @@ class ReflectHelper {
                 throw new IllegalArgumentException("args length mismatch, expected " + constructor.getParameterTypes().length + ", got " + args.length);
             }
             String signature = getConstructorTypeSignature(constructor);
+            if (setInvokeOrigin) {
+                JvmPlantTrampoline0.invokeOriginalMethodForNextInvocation(true);
+            }
             return JvmPlantNativeBridge.invokeNonVirtualArtMethodImpl(member, signature, declaringClass, false, obj, args);
         } else {
             throw new IllegalArgumentException("member must be a method or constructor");
         }
     }
 
+    /**
+     * Invoke an instance method non-virtually, no CHA lookup is performed. No declaring class check is performed.
+     * <p>
+     * Caller is responsible for checking that the method declaration class matches the receiver object (aka "this").
+     *
+     * @param member         the method or constructor to invoke, method may be static or non-static method
+     * @param declaringClass the "effective" declaring class of the method
+     * @param obj            the object to invoke the method on, may be null if the method is static
+     * @param args           the arguments to pass to the method. may be null if no arguments are passed
+     * @return the return value of the method
+     * @throws InvocationTargetException if the method threw an exception
+     */
+    public static Object invokeNonVirtualArtMethodNoDeclaringClassCheck(@NotNull Member member, @NotNull Class<?> declaringClass,
+                                                                        @Nullable Object obj, @Nullable Object[] args) throws InvocationTargetException {
+        return invokeNonVirtualArtMethodNoDeclaringClassCheck(member, declaringClass, obj, args, false);
+    }
 
     public static String getMethodTypeSignature(final Method method) {
         final StringBuilder buf = new StringBuilder();
@@ -228,6 +252,75 @@ class ReflectHelper {
 
     public static void logError(@NotNull String tag, @NotNull Throwable th) {
         JvmPlant.getLogHandler().log(tag, Level.WARNING, null, th);
+    }
+
+    private static Unsafe theUnsafe;
+
+    public static Unsafe getUnsafe() {
+        if (theUnsafe == null) {
+            try {
+                Field field = Unsafe.class.getDeclaredField("theUnsafe");
+                field.setAccessible(true);
+                theUnsafe = (Unsafe) field.get(null);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw unsafeThrow(e);
+            }
+        }
+        return theUnsafe;
+    }
+
+    public static void makeAccessible(@NotNull AccessibleObject ao) {
+        Objects.requireNonNull(ao, "ao == null");
+        try {
+            ao.setAccessible(true);
+            // fast path
+            return;
+        } catch (RuntimeException ignored) {
+            // ignore
+        }
+        AccessibleHelper.makeSelfJavaBase();
+        AccessibleHelper.makeAccessible(ao);
+    }
+
+    static class AccessibleHelper {
+
+        private AccessibleHelper() {
+        }
+
+        private static boolean sSuccessful = false;
+
+        public static void makeSelfJavaBase() {
+            if (sSuccessful) {
+                return;
+            }
+            Unsafe unsafe = getUnsafe();
+            try {
+                Class.forName("java.lang.Module");
+            } catch (ClassNotFoundException e) {
+                // Java 8 or lower
+                sSuccessful = true;
+                return;
+            }
+            try {
+                Method getModule = Class.class.getDeclaredMethod("getModule");
+                Object target = getModule.invoke(Object.class);
+                if (target != null) {
+                    Class<?> selfClass = AccessibleHelper.class;
+                    Field module = Class.class.getDeclaredField("module");
+                    long offset = unsafe.objectFieldOffset(module);
+                    // set the module field of Object class to the module of this class
+                    unsafe.putObject(selfClass, offset, target);
+                }
+                sSuccessful = true;
+            } catch (ReflectiveOperationException e) {
+                throw unsafeThrow(e);
+            }
+        }
+
+        public static void makeAccessible(@NotNull AccessibleObject ao) {
+            ao.setAccessible(true);
+        }
+
     }
 
 }

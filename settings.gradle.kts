@@ -43,8 +43,8 @@ plugins {
 rootProject.name = "JvmXposed"
 
 include(
-    ":jvm:jvmplant-shared",
-    ":jvm:jvmplant-native",
-    ":jvm:jvmplant-test",
-    ":jvm:xposed-jvm",
+    ":jvm:core",
+    ":jvm:nativelib",
+    ":jvm:test",
+    ":jvm:xposed",
 )

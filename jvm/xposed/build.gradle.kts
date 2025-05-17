@@ -6,7 +6,8 @@ group = "dev.tmpfs.jvmplant"
 version = "1.0-SNAPSHOT"
 
 dependencies {
-
+    api(projects.jvm.core)
+    compileOnly(libs.jetbrains.annotations)
 }
 
 // java 8

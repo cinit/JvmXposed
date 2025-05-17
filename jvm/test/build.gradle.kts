@@ -3,9 +3,9 @@ plugins {
 }
 
 dependencies {
-    implementation(projects.jvm.jvmplantShared)
-    implementation(projects.jvm.jvmplantNative)
-    implementation(projects.jvm.xposedJvm)
+    implementation(projects.jvm.core)
+    implementation(projects.jvm.nativelib)
+    implementation(projects.jvm.xposed)
     compileOnly(libs.jetbrains.annotations)
     testCompileOnly(libs.jetbrains.annotations)
     testImplementation(platform(libs.junit.bom))

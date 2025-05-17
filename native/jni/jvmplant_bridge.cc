@@ -4,18 +4,18 @@
 
 #include "jvmplant_bridge.h"
 
+#include <array>
 #include <cstdint>
-#include <vector>
 #include <cstring>
 #include <string>
-#include <array>
 #include <string_view>
+#include <vector>
 
 #include <jni.h>
 
-#include "utils/jni_utils.h"
-#include "shared/jvmplant_api.h"
 #include "openjdkvm/openjdkvm_hook_impl.h"
+#include "shared/jvmplant_api.h"
+#include "utils/jni_utils.h"
 
 static jvmplant::JvmPlantInterface* sJvmPlant = nullptr;
 
@@ -32,9 +32,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
  * Method:    nativeInitializeJvmPlant
  * Signature: ()V
  */
-JNIEXPORT void JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeInitializeJvmPlant
-        (JNIEnv* env, jclass) {
+JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeInitializeJvmPlant(JNIEnv* env, jclass) {
     using namespace jvmplant;
     using namespace jvmplant::util;
     std::string errMsg;
@@ -52,171 +50,12 @@ Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeInitializeJvmPlant
 
 /*
  * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeHookMethod
- * Signature: (Ljava/lang/reflect/Member;Ljava/lang/reflect/Member;Ljava/lang/Object;)Ljava/lang/reflect/Method;
- */
-JNIEXPORT jobject JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeHookMethod
-        (JNIEnv* env, jclass, jobject target, jobject callback, jobject context) {
-    using namespace jvmplant::util;
-    auto it = sJvmPlant;
-    if (it == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalStateException,
-                                  "JvmPlant is not initialized");
-        return nullptr;
-    }
-    if (target == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException,
-                                  "target method is null");
-        return nullptr;
-    }
-    if (callback == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException,
-                                  "callback method is null");
-        return nullptr;
-    }
-    if (context == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException,
-                                  "context is null");
-        return nullptr;
-    }
-    // target should be a Method/Constructor object
-    jclass kMethod = env->FindClass("java/lang/reflect/Method");
-    jclass kConstructor = env->FindClass("java/lang/reflect/Constructor");
-    if (env->IsInstanceOf(target, kMethod) == JNI_FALSE && env->IsInstanceOf(target, kConstructor) == JNI_FALSE) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
-                                  "target is not a Method/Constructor object");
-        return nullptr;
-    }
-    // callback should be a Method object
-    if (env->IsInstanceOf(callback, kMethod) == JNI_FALSE) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
-                                  "callback is not a Method object");
-        return nullptr;
-    }
-    jmethodID getDeclaringClass = env->GetMethodID(kMethod, "getDeclaringClass", "()Ljava/lang/Class;");
-    auto callbackClass = static_cast<jclass>(env->CallObjectMethod(callback, getDeclaringClass));
-    if (!env->IsInstanceOf(context, callbackClass)) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
-                                  "callback context is not an instance of class declaring callback method");
-        return nullptr;
-    }
-    env->DeleteLocalRef(kMethod);
-    env->DeleteLocalRef(kConstructor);
-    env->DeleteLocalRef(callbackClass);
-    if (it->IsMethodHooked(env, target)) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
-                                  "target method is already hooked");
-        return nullptr;
-    }
-    // do hook
-    return it->HookMethod(env, target, context, callback);
-}
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeIsMethodHooked
- * Signature: (Ljava/lang/reflect/Member;)Z
- */
-JNIEXPORT jboolean JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeIsMethodHooked
-        (JNIEnv* env, jclass, jobject method) {
-    using namespace jvmplant::util;
-    auto it = sJvmPlant;
-    if (it == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalStateException,
-                                  "JvmPlant is not initialized");
-        return JNI_FALSE;
-    }
-    if (method == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException, "method is null");
-        return JNI_FALSE;
-    }
-    // check if argument is a Method/Constructor object
-    jclass kMethod = env->FindClass("java/lang/reflect/Method");
-    jclass kConstructor = env->FindClass("java/lang/reflect/Constructor");
-    if (env->IsInstanceOf(method, kMethod) == JNI_FALSE && env->IsInstanceOf(method, kConstructor) == JNI_FALSE) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
-                                  "method is not a Method/Constructor object");
-        return JNI_FALSE;
-    }
-    env->DeleteLocalRef(kMethod);
-    env->DeleteLocalRef(kConstructor);
-    return it->IsMethodHooked(env, method) ? JNI_TRUE : JNI_FALSE;
-}
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeUnhookMethod
- * Signature: (Ljava/lang/reflect/Member;)Z
- */
-JNIEXPORT jboolean JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeUnhookMethod
-        (JNIEnv* env, jclass, jobject method) {
-    using namespace jvmplant::util;
-    auto it = sJvmPlant;
-    if (it == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalStateException,
-                                  "JvmPlant is not initialized");
-        return JNI_FALSE;
-    }
-    if (method == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException, "method is null");
-        return JNI_FALSE;
-    }
-    // check if argument is a Method/Constructor object
-    jclass kMethod = env->FindClass("java/lang/reflect/Method");
-    jclass kConstructor = env->FindClass("java/lang/reflect/Constructor");
-    if (env->IsInstanceOf(method, kMethod) == JNI_FALSE && env->IsInstanceOf(method, kConstructor) == JNI_FALSE) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
-                                  "method is not a Method/Constructor object");
-        return JNI_FALSE;
-    }
-    env->DeleteLocalRef(kMethod);
-    env->DeleteLocalRef(kConstructor);
-    return it->UnHookMethod(env, method) ? JNI_TRUE : JNI_FALSE;
-}
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeDeoptimizeMethod
- * Signature: (Ljava/lang/reflect/Member;)Z
- */
-JNIEXPORT jboolean JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeDeoptimizeMethod
-        (JNIEnv* env, jclass, jobject method) {
-    using namespace jvmplant::util;
-    auto it = sJvmPlant;
-    if (it == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalStateException,
-                                  "JvmPlant is not initialized");
-        return JNI_FALSE;
-    }
-    if (method == nullptr) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException, "method is null");
-        return JNI_FALSE;
-    }
-    // check if argument is a Method/Constructor object
-    jclass kMethod = env->FindClass("java/lang/reflect/Method");
-    jclass kConstructor = env->FindClass("java/lang/reflect/Constructor");
-    if (env->IsInstanceOf(method, kMethod) == JNI_FALSE && env->IsInstanceOf(method, kConstructor) == JNI_FALSE) {
-        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
-                                  "method is not a Method/Constructor object");
-        return JNI_FALSE;
-    }
-    env->DeleteLocalRef(kMethod);
-    env->DeleteLocalRef(kConstructor);
-    return it->DeoptimizeMethod(env, method) ? JNI_TRUE : JNI_FALSE;
-}
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
  * Method:    nativeGetClassInitializer
  * Signature: (Ljava/lang/Class;)Ljava/lang/reflect/Executable;
  */
-JNIEXPORT jobject JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassInitializer
-        (JNIEnv* env, jclass, jclass klass) {
+JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassInitializer(JNIEnv* env,
+                                                                                                      jclass,
+                                                                                                      jclass klass) {
     using namespace jvmplant::util;
     auto it = sJvmPlant;
     if (it == nullptr) {
@@ -236,9 +75,8 @@ Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassInitializer
  * Method:    nativeAllocateInstance
  * Signature: (Ljava/lang/Class;)Ljava/lang/Object;
  */
-JNIEXPORT jobject JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeAllocateInstance
-        (JNIEnv* env, jclass, jclass target) {
+JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeAllocateInstance(JNIEnv* env, jclass,
+                                                                                                   jclass target) {
     using namespace jvmplant::util;
     if (target == nullptr) {
         ThrowIfNoPendingException(env, ExceptionNames::kNullPointerException, "target class is null");
@@ -248,9 +86,8 @@ Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeAllocateInstance
 }
 
 static jobject TransformArgumentsAndInvokeNonVirtual(JNIEnv* env, jmethodID method, jclass clazz,
-                                                     const std::vector<char>& parameterShorts,
-                                                     char returnTypeShort, bool isStatic,
-                                                     jobject obj, jobjectArray args) {
+                                                     const std::vector<char>& parameterShorts, char returnTypeShort,
+                                                     bool isStatic, jobject obj, jobjectArray args) {
     using namespace jvmplant::util;
     int argc = int(parameterShorts.size());
     auto* jargs = new jvalue[argc];
@@ -345,18 +182,12 @@ static jobject TransformArgumentsAndInvokeNonVirtual(JNIEnv* env, jmethodID meth
 /*
  * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
  * Method:    invokeNonVirtualArtMethodImpl
- * Signature: (Ljava/lang/reflect/Member;Ljava/lang/String;Ljava/lang/Class;ZLjava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
+ * Signature:
+ * (Ljava/lang/reflect/Member;Ljava/lang/String;Ljava/lang/Class;ZLjava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
  */
-JNIEXPORT jobject JNICALL
-Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_invokeNonVirtualArtMethodImpl
-        (JNIEnv* env,
-         jclass clazz,
-         jobject member,
-         jstring signature,
-         jclass klass,
-         jboolean is_static,
-         jobject obj,
-         jobjectArray args) {
+JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_invokeNonVirtualArtMethodImpl(
+        JNIEnv* env, jclass clazz, jobject member, jstring signature, jclass klass, jboolean is_static, jobject obj,
+        jobjectArray args) {
     using namespace jvmplant::util;
     // basic checks have already been done in Java
     jmethodID methodId = env->FromReflectedMethod(member);
@@ -411,6 +242,85 @@ Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_invokeNonVirtualArtMethodImpl
         return nullptr;
     }
     // invoke
-    return TransformArgumentsAndInvokeNonVirtual(env, methodId, klass, paramShorts,
-                                                 returnTypeShort, is_static, obj, args);
+    return TransformArgumentsAndInvokeNonVirtual(env, methodId, klass, paramShorts, returnTypeShort, is_static, obj,
+                                                 args);
 }
+
+/*
+ * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
+ * Method:    nativeGetClassFile
+ * Signature: (Ljava/lang/Class;)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassFile(JNIEnv* env, jclass,
+                                                                                                  jclass klass) {
+    using namespace jvmplant::util;
+    auto it = sJvmPlant;
+    if (it == nullptr) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalStateException,
+                                  "JvmPlant is not initialized");
+        return JNI_FALSE;
+    }
+    if (klass == nullptr) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException, "class is null");
+        return nullptr;
+    }
+    std::string errMsg;
+    std::vector<uint8_t> bytecode = it->GetClassBytecode(env, klass, errMsg);
+    if (env->ExceptionCheck()) {
+        return nullptr;
+    }
+    if (bytecode.empty()) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kRuntimeException, errMsg);
+        return nullptr;
+    }
+    jbyteArray bytecodeArray = env->NewByteArray(static_cast<jsize>(bytecode.size()));
+    if (bytecodeArray == nullptr) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kOutOfMemoryError, "out of memory");
+        return nullptr;
+    }
+    env->SetByteArrayRegion(bytecodeArray, 0, static_cast<jsize>(bytecode.size()),
+                            reinterpret_cast<const jbyte*>(bytecode.data()));
+    return bytecodeArray;
+}
+
+/*
+ * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
+ * Method:    nativeRedefineClass
+ * Signature: (Ljava/lang/Class;[B)V
+ */
+JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeRedefineClass(JNIEnv* env, jclass,
+                                                                                             jclass klass,
+                                                                                             jbyteArray bytecode) {
+    using namespace jvmplant::util;
+    auto it = sJvmPlant;
+    if (it == nullptr) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalStateException,
+                                  "JvmPlant is not initialized");
+        return;
+    }
+    if (klass == nullptr) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException, "class is null");
+        return;
+    }
+    if (bytecode == nullptr) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException, "bytecode is null");
+        return;
+    }
+    jsize bytecodeLength = env->GetArrayLength(bytecode);
+    if (bytecodeLength <= 0) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalArgumentException,
+                                  "bytecode length is invalid");
+        return;
+    }
+    std::vector<uint8_t> bytecodeVector(static_cast<size_t>(bytecodeLength));
+    env->GetByteArrayRegion(bytecode, 0, bytecodeLength, reinterpret_cast<jbyte*>(bytecodeVector.data()));
+    if (env->ExceptionCheck()) {
+        return;
+    }
+    std::string errMsg;
+    if (!it->RedefineClass(env, klass, bytecodeVector, errMsg)) {
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kRuntimeException, errMsg);
+        return;
+    }
+}
+

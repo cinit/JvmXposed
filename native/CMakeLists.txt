@@ -20,7 +20,7 @@ SET_OPTION(DOBBY_GENERATE_SHARED OFF)
 SET_OPTION(Plugin.SymbolResolver ON)
 add_subdirectory(../libs/Dobby dobby)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=format-invalid-specifier -Werror=return-type -Wno-invalid-offsetof")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Wno-invalid-offsetof")
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     SET(CLANG_CXX_EXTRA_OPT "-Werror=unknown-warning-option -Werror=format-invalid-specifier -Werror=call-to-pure-virtual-from-ctor-dtor")
     SET(CLANG_C_EXTRA_OPT "-Werror=format-invalid-specifier")
@@ -69,6 +69,7 @@ add_library(
         utils/log_common.cc
         jni/jvmplant_bridge.cc
         openjdkvm/openjdkvm_hook_impl.cc
+        openjdkvm/jvmti_error_strings.cc
 )
 
 target_include_directories(

@@ -42,6 +42,7 @@ constexpr auto kRuntimeException = "java/lang/RuntimeException";
 constexpr auto kIllegalArgumentException = "java/lang/IllegalArgumentException";
 constexpr auto kIllegalStateException = "java/lang/IllegalStateException";
 constexpr auto kNullPointerException = "java/lang/NullPointerException";
+constexpr auto kOutOfMemoryError = "java/lang/OutOfMemoryError";
 
 }
 
@@ -58,6 +59,10 @@ std::string GetErrorMessageAndClearCurrentThrowable(JNIEnv* env, std::string_vie
 jobject WrapPrimitiveValue(JNIEnv* env, char type, const jvalue& jvalue);
 
 void ExtractWrappedValue(JNIEnv* env, jvalue& out, char type, jobject value);
+
+jstring GetClassNameJ(JNIEnv* env, jclass klass);
+
+std::string GetClassName(JNIEnv* env, jclass klass);
 
 }
 

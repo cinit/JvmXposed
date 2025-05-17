@@ -6,9 +6,9 @@
 #define JVMXPOSED_OPENJDKVM_HOOK_IMPL_H
 
 #include <cstdint>
-#include <vector>
-#include <string_view>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <jni.h>
 
@@ -28,13 +28,9 @@ public:
 
     OpenJdkVmHookImpl& operator=(OpenJdkVmHookImpl&&) = delete;
 
-    jobject HookMethod(JNIEnv* env, jobject target_method, jobject hooker_object, jobject callback_method) override;
+    std::vector<uint8_t> GetClassBytecode(JNIEnv* env, jclass klass, std::string& errorMsg) override;
 
-    bool UnHookMethod(JNIEnv* env, jobject target_method) override;
-
-    bool IsMethodHooked(JNIEnv* env, jobject method) override;
-
-    bool DeoptimizeMethod(JNIEnv* env, jobject method) override;
+    bool RedefineClass(JNIEnv* env, jclass klass, const std::vector<uint8_t>& bytecode, std::string& errorMsg) override;
 
     void* GetNativeMethodFunction(JNIEnv* env, jobject method) override;
 
@@ -46,9 +42,8 @@ private:
     OpenJdkVmHookImpl() = default;
 
     static OpenJdkVmHookImpl* CreateAndSetInstanceInternal(JNIEnv* env, std::string& errorMsg);
-
 };
 
-}
+} // namespace jvmplant
 
-#endif //JVMXPOSED_OPENJDKVM_HOOK_IMPL_H
+#endif // JVMXPOSED_OPENJDKVM_HOOK_IMPL_H

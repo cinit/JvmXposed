@@ -22,9 +22,7 @@ std::optional<std::string> JstringToStringOpt(JNIEnv* env, jstring jstr) {
     return str;
 }
 
-std::string JstringToString(JNIEnv* env, jstring jstr) {
-    return JstringToStringOpt(env, jstr).value_or("");
-}
+std::string JstringToString(JNIEnv* env, jstring jstr) { return JstringToStringOpt(env, jstr).value_or(""); }
 
 void ThrowIfNoPendingException(JNIEnv* env, const char* klass, std::string_view msg) {
     if (env->ExceptionCheck()) {
@@ -204,5 +202,32 @@ void ExtractWrappedValue(JNIEnv* env, jvalue& out, char type, jobject value) {
     }
 }
 
-
+jstring GetClassNameJ(JNIEnv* env, jclass klass) {
+    static jmethodID getName = nullptr;
+    if (getName == nullptr) {
+        jclass kClass = env->FindClass("java/lang/Class");
+        getName = env->GetMethodID(kClass, "getName", "()Ljava/lang/String;");
+        env->DeleteLocalRef(kClass);
+    }
+    if (getName == nullptr) {
+        return nullptr;
+    }
+    auto name = static_cast<jstring>(env->CallObjectMethod(klass, getName));
+    if (env->ExceptionCheck()) {
+        return nullptr;
+    }
+    return name;
 }
+
+std::string GetClassName(JNIEnv* env, jclass klass) {
+    auto jname = GetClassNameJ(env, klass);
+    if (jname == nullptr || env->ExceptionCheck()) {
+        return {};
+    }
+    auto name = JstringToString(env, jname);
+    env->DeleteLocalRef(jname);
+    return name;
+}
+
+
+} // namespace jvmplant::util

@@ -71,6 +71,22 @@ JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nati
 JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_invokeNonVirtualArtMethodImpl
   (JNIEnv *, jclass, jobject, jstring, jclass, jboolean, jobject, jobjectArray);
 
+/*
+ * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
+ * Method:    nativeGetClassFile
+ * Signature: (Ljava/lang/Class;)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassFile
+  (JNIEnv *, jclass, jclass);
+
+/*
+ * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
+ * Method:    nativeRedefineClass
+ * Signature: (Ljava/lang/Class;[B)V
+ */
+JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeRedefineClass
+  (JNIEnv *, jclass, jclass, jbyteArray);
+
 #ifdef __cplusplus
 }
 #endif

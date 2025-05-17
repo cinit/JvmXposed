@@ -3,7 +3,7 @@ package dev.tmpfs.jvmplant.impl;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.reflect.Executable;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
 
@@ -44,7 +44,7 @@ class JvmPlantNativeBridge {
      * @param clazz the class to get the class initializer, must not be null
      * @return the class initializer, or null if the class has no class initializer
      */
-    static native Executable nativeGetClassInitializer(@NotNull Class<?> clazz);
+    static native Constructor<?> nativeGetClassInitializer(@NotNull Class<?> clazz);
 
     static native <T> T nativeAllocateInstance(@NotNull Class<T> clazz) throws InstantiationException;
 

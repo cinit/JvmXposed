@@ -34,7 +34,7 @@ public:
 
     void* GetNativeMethodFunction(JNIEnv* env, jobject method) override;
 
-    jobject GetClassInitializer(JNIEnv* env, jclass klass) override;
+    jobject GetClassInitializer(JNIEnv* env, jclass klass, std::string& errorMsg) override;
 
     static OpenJdkVmHookImpl* GetOrCreateInstance(JNIEnv* env, std::string& errorMsg);
 

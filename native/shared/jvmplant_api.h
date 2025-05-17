@@ -43,8 +43,8 @@ public:
      * @param klass The class to get the class initializer
      * @return The class initializer, or null if the class has no initializer.
      */
-    virtual jobject GetClassInitializer(JNIEnv* env, jclass klass) = 0;
+    virtual jobject GetClassInitializer(JNIEnv* env, jclass klass, std::string& errorMsg) = 0;
 };
-}
+} // namespace jvmplant
 
-#endif //JVMXPOSED_JVMPLANT_API_H
+#endif // JVMXPOSED_JVMPLANT_API_H

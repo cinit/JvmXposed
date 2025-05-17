@@ -218,6 +218,59 @@ bool OpenJdkVmHookImpl::RedefineClass(JNIEnv* env, jclass klass, const std::vect
 
 void* OpenJdkVmHookImpl::GetNativeMethodFunction(JNIEnv* env, jobject method) { return nullptr; }
 
-jobject OpenJdkVmHookImpl::GetClassInitializer(JNIEnv* env, jclass klass) { return nullptr; }
+jobject OpenJdkVmHookImpl::GetClassInitializer(JNIEnv* env, jclass klass, std::string& errorMsg) {
+    using namespace jvmplant::util;
+    if (!sHookInfo.initialized) {
+        errorMsg = "OpenJdkVmHookImpl is not initialized";
+        return {};
+    }
+    if (klass == nullptr) {
+        errorMsg = "class is null";
+        return {};
+    }
+    // iterate class methods
+    auto ti = sHookInfo.ti;
+    jint count = 0;
+    jmethodID* methods = nullptr;
+    auto rc = ti->GetClassMethods(klass, &count, &methods);
+    if (rc != JVMTI_ERROR_NONE) {
+        errorMsg = "Failed to get class methods: " + JvmtiErrorToSting(rc);
+        return nullptr;
+    }
+    jmethodID clinit = nullptr;
+    // find <clinit> method
+    for (auto i = 0; i < count; i++) {
+        jmethodID method = methods[i];
+        char* name = nullptr;
+        char* signature = nullptr;
+        // we don't need generic
+        if (ti->GetMethodName(method, &name, &signature, nullptr) != JVMTI_ERROR_NONE) {
+            continue;
+        }
+        if (name == nullptr || signature == nullptr) {
+            continue;
+        }
+        if (std::string_view("<clinit>") == name && std::string_view("()V") == signature) {
+            // found <clinit> method
+            clinit = method;
+        }
+        // free name and signature
+        ti->Deallocate(reinterpret_cast<unsigned char*>(name));
+        ti->Deallocate(reinterpret_cast<unsigned char*>(signature));
+        if (clinit != nullptr) {
+            break;
+        }
+    }
+    // free methods
+    if (methods != nullptr) {
+        ti->Deallocate(reinterpret_cast<unsigned char*>(methods));
+    }
+    if (clinit == nullptr) {
+        // the class has no <clinit> method, just return null
+        return nullptr;
+    }
+    // ToReflectedMethod, it will return a Constructor object, or the exception
+    return env->ToReflectedMethod(klass, clinit, JNI_TRUE);
+}
 
 } // namespace jvmplant

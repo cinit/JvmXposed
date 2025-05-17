@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HookTests {
 
@@ -48,8 +48,7 @@ public class HookTests {
             return a + b;
         }
 
-        public static String primitiveArgsPassingTest
-                (int a, long b, float c, double d, boolean e, char f, byte g, short h) {
+        public static String primitiveArgsPassingTest(int a, long b, float c, double d, boolean e, char f, byte g, short h) {
             return String.format("%d %d %.06f %.06f %b %c %d %d", a, b, c, d, e, f, g, h);
         }
 
@@ -309,8 +308,7 @@ public class HookTests {
     @Test
     public void primitiveArgsPassingTest() throws ReflectiveOperationException {
         TestEnvironments.ensureInitialized();
-        Method method = StaticMethod.class.getDeclaredMethod("primitiveArgsPassingTest",
-                int.class, long.class, float.class, double.class, boolean.class, char.class, byte.class, short.class);
+        Method method = StaticMethod.class.getDeclaredMethod("primitiveArgsPassingTest", int.class, long.class, float.class, double.class, boolean.class, char.class, byte.class, short.class);
         assertEquals("1 2 3.000000 4.000000 true a 5 6", StaticMethod.primitiveArgsPassingTest(1, 2L, 3f, 4d, true, 'a', (byte) 5, (short) 6));
         XC_MethodHook.Unhook unhook = null;
         try {
@@ -384,12 +382,8 @@ public class HookTests {
     @Test
     public void returnTypeTests() throws ReflectiveOperationException {
         TestEnvironments.ensureInitialized();
-        Class<?>[] primitiveNumberTypes = {
-                int.class, long.class, float.class, double.class, byte.class, short.class
-        };
-        Class<?>[] wrapperNumberTypes = {
-                Integer.class, Long.class, Float.class, Double.class, Byte.class, Short.class
-        };
+        Class<?>[] primitiveNumberTypes = {int.class, long.class, float.class, double.class, byte.class, short.class};
+        Class<?>[] wrapperNumberTypes = {Integer.class, Long.class, Float.class, Double.class, Byte.class, Short.class};
         for (int i = 0; i < primitiveNumberTypes.length; i++) {
             Class<?> primitiveType = primitiveNumberTypes[i];
             Class<?> wrapperType = wrapperNumberTypes[i];
@@ -432,6 +426,64 @@ public class HookTests {
             // do nothing
         });
         voidMethod.invoke(null);
+    }
+
+    private static boolean sForGetClassStaticInitializerFired = false;
+
+    private static class ForGetClassStaticInitializer {
+
+        static {
+            sForGetClassStaticInitializerFired = true;
+        }
+
+        public static void empty() {
+        }
+
+    }
+
+    @Test
+    public void testGetClassStaticInitializer() throws ReflectiveOperationException {
+        TestEnvironments.ensureInitialized();
+        Method getClassStaticInitializer = Class.forName("dev.tmpfs.jvmplant.impl.ReflectHelper").getDeclaredMethod("getClassStaticInitializer", Class.class);
+        getClassStaticInitializer.setAccessible(true);
+        Constructor<?> clinit = (Constructor<?>) getClassStaticInitializer.invoke(null, ForGetClassStaticInitializer.class);
+        assertEquals(ForGetClassStaticInitializer.class, clinit.getDeclaringClass());
+        assertTrue(Modifier.isStatic(clinit.getModifiers()));
+        assertFalse(sForGetClassStaticInitializerFired);
+    }
+
+    private static int sForHookClassStaticInitializerOriginalFired = 0;
+    private static int sForHookClassStaticInitializerHookedInvoked = 0;
+
+    private static class ForHookClassStaticInitializer {
+
+        static {
+            sForHookClassStaticInitializerOriginalFired++;
+        }
+
+        public static void empty() {
+        }
+
+    }
+
+    @Test
+    public void testHookClassStaticInitializer() throws ReflectiveOperationException {
+        TestEnvironments.ensureInitialized();
+        Method getClassStaticInitializer = Class.forName("dev.tmpfs.jvmplant.impl.ReflectHelper").getDeclaredMethod("getClassStaticInitializer", Class.class);
+        getClassStaticInitializer.setAccessible(true);
+        Constructor<?> clinit = (Constructor<?>) getClassStaticInitializer.invoke(null, ForHookClassStaticInitializer.class);
+        HookUtils.hookBefore(clinit, param -> {
+            sForHookClassStaticInitializerHookedInvoked++;
+            // prevent the original static initializer from running
+            param.setResult(null);
+        });
+        // call the static initializer
+        ForHookClassStaticInitializer.empty();
+        ForHookClassStaticInitializer.empty();
+        // the original static initializer should not be fired
+        assertEquals(0, sForHookClassStaticInitializerOriginalFired);
+        // the hook should be fired
+        assertEquals(1, sForHookClassStaticInitializerHookedInvoked);
     }
 
 }

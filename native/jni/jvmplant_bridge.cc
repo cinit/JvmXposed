@@ -67,7 +67,19 @@ JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nati
         ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kNullPointerException, "class is null");
         return nullptr;
     }
-    return it->GetClassInitializer(env, klass);
+    std::string errMsg;
+    jobject rc = it->GetClassInitializer(env, klass, errMsg);
+    if (env->ExceptionCheck()) {
+        // return with exception
+        return nullptr;
+    }
+    if (rc == nullptr && !errMsg.empty()) {
+        // if the class has no <clinit> method, just return null
+        ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kIllegalStateException, errMsg);
+        return nullptr;
+    }
+    // return the Constructor object, or null if the class has no <clinit> method
+    return rc;
 }
 
 /*
@@ -323,4 +335,3 @@ JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeR
         return;
     }
 }
-

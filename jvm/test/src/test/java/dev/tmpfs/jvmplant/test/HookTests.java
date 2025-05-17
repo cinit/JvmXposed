@@ -450,6 +450,9 @@ public class HookTests {
         assertEquals(ForGetClassStaticInitializer.class, clinit.getDeclaringClass());
         assertTrue(Modifier.isStatic(clinit.getModifiers()));
         assertFalse(sForGetClassStaticInitializerFired);
+        // array and primitive types should not have static initializers
+        assertNull(getClassStaticInitializer.invoke(null, int[].class));
+        assertNull(getClassStaticInitializer.invoke(null, long.class));
     }
 
     private static int sForHookClassStaticInitializerOriginalFired = 0;

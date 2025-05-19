@@ -16,9 +16,9 @@ set(CMAKE_CXX_STANDARD 20)
 # C standard should be 18 by default in build.gradle.kts, but we cmake 3.22.1 doesn't support it
 set(CMAKE_C_STANDARD 11)
 
-SET_OPTION(DOBBY_GENERATE_SHARED OFF)
-SET_OPTION(Plugin.SymbolResolver ON)
-add_subdirectory(../libs/Dobby dobby)
+#SET_OPTION(DOBBY_GENERATE_SHARED OFF)
+#SET_OPTION(Plugin.SymbolResolver ON)
+#add_subdirectory(../libs/Dobby dobby)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Wno-invalid-offsetof")
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -58,9 +58,9 @@ add_subdirectory(../libs/fmt fmt)
 target_compile_definitions(fmt-header-only INTERFACE FMT_STATIC_THOUSANDS_SEPARATOR=1)
 
 # set -fomit-frame-pointer for Dobby if ANDROID_ABI is armeabi-v7a
-if ("${ANDROID_ABI}" STREQUAL "armeabi-v7a")
-    target_compile_options(dobby PRIVATE -fomit-frame-pointer)
-endif ()
+#if ("${ANDROID_ABI}" STREQUAL "armeabi-v7a")
+#    target_compile_options(dobby PRIVATE -fomit-frame-pointer)
+#endif ()
 
 add_library(
         jvmplant
@@ -82,5 +82,5 @@ target_link_libraries(
         jvmplant
         PRIVATE
         fmt-header-only
-        dobby
+#        dobby
 )

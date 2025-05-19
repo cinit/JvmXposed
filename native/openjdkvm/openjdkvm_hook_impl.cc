@@ -9,8 +9,8 @@
 
 #include <jni.h>
 #include <jvmti.h>
-
-#include <dobby.h>
+#include <ranges>
+#include <algorithm>
 #include <unordered_map>
 
 #include "jvmti_error_strings.h"

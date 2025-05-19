@@ -4,7 +4,7 @@ plugins {
 
 dependencies {
     implementation(projects.jvm.core)
-    implementation(projects.jvm.nativelib)
+    //implementation(projects.jvm.nativelib)
     implementation(projects.jvm.xposed)
     compileOnly(libs.jetbrains.annotations)
     testCompileOnly(libs.jetbrains.annotations)

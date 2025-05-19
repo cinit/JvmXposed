@@ -77,7 +77,7 @@ cd native && mkdir -p build && cd build && cmake .. && make jvmplant -j 4
 Run the unit tests:
 
 ```bash
-export JVMPLANT_TEST_NATIVE_DIR=/path/to/jvmplant/native/build
+export JVMPLANT_TEST_NATIVE_DIR=/path/to/JvmXposed/native/build
 ./gradlew :jvm:test:test --tests "dev.tmpfs.jvmplant.test.HookTests"
 ```
 

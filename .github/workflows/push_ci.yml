@@ -62,5 +62,8 @@ jobs:
         with:
           path: |
             jvm/**/build/libs/*.jar
-            native/build/*.(so|dylib|dll|a)
+            native/build/*.so
+            native/build/*.dll
+            native/build/*.a
+            native/build/*.dylib
           name: JvmXposed-linux-x86_64-${{ github.event.head_commit.id }}

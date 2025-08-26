@@ -36,7 +36,7 @@ class JvmPlantNativeBridge {
      * @param classFile the class file as a byte array, must not be null
      * @throws RuntimeException if any error occurs
      */
-    static native void nativeRedefineClass(@NotNull Class<?> clazz, byte @NotNull [] classFile) throws RuntimeException;
+    static native void nativeRedefineClassV2(@NotNull Class<?> clazz, byte @NotNull [] classFile, boolean skipVerification) throws RuntimeException;
 
     /**
      * Get the class initializer, aka, the "<clinit>" method, which is a static constructor without parameters.

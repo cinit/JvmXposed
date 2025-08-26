@@ -39,7 +39,6 @@ class JvmPlantHookManager {
         }
         JvmPlantNativeBridge.nativeInitializeJvmPlant();
         initGlobalStaticFieldsClass();
-        HotSpotClassFileVerifyBypass.findBytecodeVerificationFlagAddress();
         sInitialized = true;
     }
 
@@ -144,18 +143,7 @@ class JvmPlantHookManager {
                 sHookedInsatnceConstructorDeclaringClassSet.add(targetClass);
             }
             boolean shouldBypassVerification = sHookedInsatnceConstructorDeclaringClassSet.contains(targetClass);
-            if (shouldBypassVerification) {
-                boolean oldVerifyLocal = HotSpotClassFileVerifyBypass.getBytecodeVerificationLocal();
-                boolean oldVerifyRemote = HotSpotClassFileVerifyBypass.getBytecodeVerificationRemote();
-                HotSpotClassFileVerifyBypass.setBytecodeVerification(false, false);
-                try {
-                    JvmPlantNativeBridge.nativeRedefineClass(targetClass, newBytecode);
-                } finally {
-                    HotSpotClassFileVerifyBypass.setBytecodeVerification(oldVerifyLocal, oldVerifyRemote);
-                }
-            } else {
-                JvmPlantNativeBridge.nativeRedefineClass(targetClass, newBytecode);
-            }
+            JvmPlantNativeBridge.nativeRedefineClassV2(targetClass, newBytecode, shouldBypassVerification);
             // redefine completed, now we can set the hook info
             HookInfo hookInfo = new HookInfo();
             hookInfo.id = hookId;

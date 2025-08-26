@@ -70,6 +70,7 @@ add_library(
         jni/jvmplant_bridge.cc
         openjdkvm/openjdkvm_hook_impl.cc
         openjdkvm/jvmti_error_strings.cc
+        platform/debug_utils.cc
 )
 
 target_include_directories(

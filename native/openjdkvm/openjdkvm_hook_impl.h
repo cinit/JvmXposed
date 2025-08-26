@@ -30,7 +30,8 @@ public:
 
     std::vector<uint8_t> GetClassBytecode(JNIEnv* env, jclass klass, std::string& errorMsg) override;
 
-    bool RedefineClass(JNIEnv* env, jclass klass, const std::vector<uint8_t>& bytecode, std::string& errorMsg) override;
+    bool RedefineClassV2(JNIEnv* env, jclass klass, const std::vector<uint8_t>& bytecode, bool skipVerification,
+                         std::string& errorMsg) override;
 
     void* GetNativeMethodFunction(JNIEnv* env, jobject method) override;
 

@@ -2,16 +2,28 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 
+#include <algorithm>
 #include <jni.h>
 #include <jvmti.h>
 #include <ranges>
-#include <algorithm>
 #include <unordered_map>
+
+// for dlopen, dlsym, dlclose, LoadLibraryW, GetProcAddress, FreeLibrary
+#ifdef __WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+#include <fmt/format.h>
 
 #include "jvmti_error_strings.h"
 #include "utils/jni_utils.h"
@@ -23,6 +35,61 @@ namespace jvmplant {
 
 static OpenJdkVmHookImpl* volatile sInstance = nullptr;
 
+class JObjectHolder {
+public:
+    JObjectHolder(JNIEnv* env, jobject obj) : env_(env), obj_(nullptr) {
+        if (env_ != nullptr && obj != nullptr) {
+            obj_ = env_->NewGlobalRef(obj);
+            if (obj_ == nullptr) {
+                // failed to create global ref
+                env->ExceptionDescribe();
+                env->FatalError("Failed to create global reference");
+                __builtin_unreachable();
+            }
+        }
+    }
+
+    ~JObjectHolder() {
+        if (env_ != nullptr && obj_ != nullptr) {
+            env_->DeleteGlobalRef(obj_);
+        }
+    }
+    [[nodiscard]] jobject Peek() const { return obj_; }
+
+    [[nodiscard]] bool IsValid() const { return env_ != nullptr && obj_ != nullptr; }
+
+    [[nodiscard]] jobject Release() {
+        jobject tmp = obj_;
+        obj_ = nullptr; // prevent deletion in destructor
+        return tmp;
+    }
+
+    JObjectHolder(const JObjectHolder&) = delete;
+
+    JObjectHolder& operator=(const JObjectHolder&) = delete;
+
+    JObjectHolder(JObjectHolder&& other) noexcept : env_(other.env_), obj_(other.obj_) {
+        other.env_ = nullptr;
+        other.obj_ = nullptr;
+    }
+
+    JObjectHolder& operator=(JObjectHolder&& other) noexcept {
+        if (this != &other) {
+            if (env_ != nullptr && obj_ != nullptr) {
+                env_->DeleteGlobalRef(obj_);
+            }
+            env_ = other.env_;
+            obj_ = other.obj_;
+            other.env_ = nullptr;
+            other.obj_ = nullptr;
+        }
+        return *this;
+    }
+
+private:
+    JNIEnv* env_ = nullptr;
+    jobject obj_ = nullptr; // global reference to the object
+};
 
 namespace openjdkvm {
 
@@ -32,7 +99,10 @@ struct OpenJdkVmHookInfo {
     jvmtiEnv* ti = nullptr;
     std::mutex dumpClassBytecodeTransformMutex;
     std::mutex dumpClassBytecodeMapMutex;
-    std::unordered_map<std::string, std::vector<uint8_t>> classFileBytes;
+    std::mutex redefineClassMutex;
+    std::vector<std::tuple<JObjectHolder, std::vector<uint8_t>>> classFileBytes;
+    uint8_t* pBytecodeVerificationLocal = nullptr;
+    uint8_t* pBytecodeVerificationRemote = nullptr;
 };
 
 } // namespace openjdkvm
@@ -44,20 +114,22 @@ void JNICALL OnJvmtiEventClassFileLoadHook(jvmtiEnv* jvmti_env, JNIEnv* jni_env,
                                            jint class_data_len, const unsigned char* class_data,
                                            jint* new_class_data_len, unsigned char** new_class_data) {
     // LOGI("OnJvmtiEventClassFileLoadHook: class name: {}", name);
-    std::scoped_lock lock(sHookInfo.dumpClassBytecodeMapMutex);
-
-    // add or update class data to map
-    if (sHookInfo.classFileBytes.find(name) == sHookInfo.classFileBytes.end()) {
-        sHookInfo.classFileBytes[name] = std::vector(class_data, class_data + class_data_len);
-    } else {
-        sHookInfo.classFileBytes[name].assign(class_data, class_data + class_data_len);
+    if (class_being_redefined == nullptr) {
+        // ignore initial load, only care about retransform
+        return;
     }
+    std::scoped_lock lock(sHookInfo.dumpClassBytecodeMapMutex);
+    auto&& classFile = std::vector(class_data, class_data + class_data_len);
+    auto&& obj = JObjectHolder(jni_env, class_being_redefined);
+    // add to map
+    sHookInfo.classFileBytes.emplace_back(std::move(obj), std::move(classFile));
 }
 
 static bool InitOpenJdkVmHookInfoLocked(JNIEnv* env, std::string& errorMsg) {
     if (sHookInfo.initialized) {
         return true;
     }
+    constexpr uint64_t kInvalidOffset = static_cast<uint64_t>(-1);
     using namespace openjdkvm;
     // get jvmtiEnv
     JavaVM* vm = nullptr;
@@ -92,6 +164,186 @@ static bool InitOpenJdkVmHookInfoLocked(JNIEnv* env, std::string& errorMsg) {
     rc = ti->SetEventCallbacks(&callbacks, sizeof(callbacks));
     if (rc != JVMTI_ERROR_NONE) {
         errorMsg = "Failed to set event callbacks: " + std::to_string(rc);
+        return false;
+    }
+
+    // find address of bytecode verification flags
+    void* libjvmHandle = nullptr;
+#ifdef __WIN32
+    libjvmHandle = GetModuleHandleW(L"jvm.dll");
+    if (libjvmHandle == nullptr) {
+        errorMsg = fmt::format("Failed to get handle of jvm.dll: {}", GetLastError());
+        return false;
+    }
+#else
+    libjvmHandle = dlopen("libjvm.so", RTLD_NOW | RTLD_NOLOAD);
+    if (libjvmHandle == nullptr) {
+        errorMsg = fmt::format("Failed to get handle of libjvm.so: {}", dlerror());
+        return false;
+    }
+#endif
+    std::function<void*(std::string_view)> fnGetSymbolAddress;
+    fnGetSymbolAddress = [libjvmHandle](std::string_view name) -> void* {
+        void* addr;
+#ifdef __WIN32
+        addr = GetProcAddress(static_cast<HMODULE>(libjvmHandle), std::string(name).c_str());
+#else
+        addr = dlsym(libjvmHandle, std::string(name).c_str());
+#endif
+        return addr;
+    };
+    std::unique_ptr<void, std::function<void(void*)>> libjvmCloser(libjvmHandle, [](void* handle) {
+#ifdef __WIN32
+    /* GetModuleHandleW does not need to be freed */
+#else
+        dlclose(handle);
+#endif
+    });
+    uint64_t gHotSpotVMStructEntryTypeNameOffset = 0;
+    uint64_t gHotSpotVMStructEntryFieldNameOffset = 0;
+    uint64_t gHotSpotVMStructEntryTypeStringOffset = 0;
+    uint64_t gHotSpotVMStructEntryIsStaticOffset = 0;
+    uint64_t gHotSpotVMStructEntryOffsetOffset = 0;
+    uint64_t gHotSpotVMStructEntryAddressOffset = 0;
+    uint64_t gHotSpotVMStructEntryArrayStride = 0;
+    uint64_t gHotSpotVMTypeEntryTypeNameOffset = 0;
+    uint64_t gHotSpotVMTypeEntrySuperclassNameOffset = 0;
+    uint64_t gHotSpotVMTypeEntryIsOopTypeOffset = 0;
+    uint64_t gHotSpotVMTypeEntryIsIntegerTypeOffset = 0;
+    uint64_t gHotSpotVMTypeEntryIsUnsignedOffset = 0;
+    uint64_t gHotSpotVMTypeEntrySizeOffset = 0;
+    uint64_t gHotSpotVMTypeEntryArrayStride = 0;
+    // load values
+    {
+        struct U64Field {
+            std::string_view name;
+            uint64_t* ptr;
+        };
+#define U64_FIELD(name_) {#name_, &name_}
+        std::vector<U64Field> fields = {
+                U64_FIELD(gHotSpotVMStructEntryTypeNameOffset),     U64_FIELD(gHotSpotVMStructEntryFieldNameOffset),
+                U64_FIELD(gHotSpotVMStructEntryTypeStringOffset),   U64_FIELD(gHotSpotVMStructEntryIsStaticOffset),
+                U64_FIELD(gHotSpotVMStructEntryOffsetOffset),       U64_FIELD(gHotSpotVMStructEntryAddressOffset),
+                U64_FIELD(gHotSpotVMStructEntryArrayStride),        U64_FIELD(gHotSpotVMTypeEntryTypeNameOffset),
+                U64_FIELD(gHotSpotVMTypeEntrySuperclassNameOffset), U64_FIELD(gHotSpotVMTypeEntryIsOopTypeOffset),
+                U64_FIELD(gHotSpotVMTypeEntryIsIntegerTypeOffset),  U64_FIELD(gHotSpotVMTypeEntryIsUnsignedOffset),
+                U64_FIELD(gHotSpotVMTypeEntrySizeOffset),           U64_FIELD(gHotSpotVMTypeEntryArrayStride),
+        };
+#undef U64_FIELD
+        for (auto& field: fields) {
+            void* addr = fnGetSymbolAddress(field.name);
+            if (addr == nullptr) {
+                errorMsg = fmt::format("Failed to get symbol address of {}.", field.name);
+                return false;
+            }
+            *field.ptr = *static_cast<uint64_t*>(addr);
+        }
+    }
+    void** gHotSpotVMStructs = nullptr;
+    void** gHotSpotVMTypes = nullptr;
+    {
+        gHotSpotVMStructs = static_cast<void**>(fnGetSymbolAddress("gHotSpotVMStructs"));
+        if (gHotSpotVMStructs == nullptr) {
+            errorMsg = "Failed to get symbol address of gHotSpotVMStructs.";
+            return false;
+        }
+        gHotSpotVMTypes = static_cast<void**>(fnGetSymbolAddress("gHotSpotVMTypes"));
+        if (gHotSpotVMTypes == nullptr) {
+            errorMsg = "Failed to get symbol address of gHotSpotVMTypes.";
+            return false;
+        }
+    }
+    uint64_t jvmFlag_name_offset = kInvalidOffset;
+    uint64_t jvmFlag_addr_offset = kInvalidOffset;
+    void* jvmFlag_flags = nullptr;
+    size_t jvmFlag_numFlags = 0;
+    // find JVMFlag struct entry in gHotSpotVMStructs
+    {
+        auto* entry = static_cast<uint8_t*>(*gHotSpotVMStructs);
+        while (true) {
+            auto* typeNamePtr = *reinterpret_cast<const char**>(entry + gHotSpotVMStructEntryTypeNameOffset);
+            auto* fieldNamePtr = *reinterpret_cast<const char**>(entry + gHotSpotVMStructEntryFieldNameOffset);
+            if (typeNamePtr == nullptr && fieldNamePtr == nullptr) {
+                // end of list
+                break;
+            }
+            auto isStatic = *reinterpret_cast<const int*>(entry + gHotSpotVMStructEntryIsStaticOffset);
+            uint64_t offset = *reinterpret_cast<const uint64_t*>(entry + gHotSpotVMStructEntryOffsetOffset);
+            void* address = *reinterpret_cast<void**>(entry + gHotSpotVMStructEntryAddressOffset);
+            std::string typeName = typeNamePtr != nullptr ? std::string(typeNamePtr) : "";
+            std::string fieldName = fieldNamePtr != nullptr ? std::string(fieldNamePtr) : "";
+            if (typeName == "JVMFlag") {
+                // JVMFlag.{_name,_addr,_flags} are non-static fields
+                if (fieldName == "_name" && isStatic == 0) {
+                    jvmFlag_name_offset = static_cast<uint8_t>(offset);
+                } else if (fieldName == "_addr" && isStatic == 0) {
+                    jvmFlag_addr_offset = static_cast<uint8_t>(offset);
+                }
+                // JVMFlag::{flags,numFlags} are static fields
+                else if (fieldName == "flags" && isStatic == 1) {
+                    jvmFlag_flags = *reinterpret_cast<void**>(address);
+                } else if (fieldName == "numFlags" && isStatic == 1) {
+                    jvmFlag_numFlags = *reinterpret_cast<size_t*>(address);
+                }
+            }
+            entry += gHotSpotVMStructEntryArrayStride;
+        }
+    }
+    // check found
+    if (jvmFlag_name_offset == kInvalidOffset || jvmFlag_addr_offset == kInvalidOffset || jvmFlag_flags == nullptr ||
+        jvmFlag_numFlags == 0) {
+        errorMsg = fmt::format("Failed to find JVMFlag struct entry or its fields, got name_offset={}, addr_offset={}, "
+                               "flags={}, numFlags={}",
+                               jvmFlag_name_offset, jvmFlag_addr_offset, jvmFlag_flags, jvmFlag_numFlags);
+        return false;
+    }
+
+    // find JVMType size
+    size_t jvmFlag_structSize = 0;
+    {
+        auto* entry = static_cast<uint8_t*>(*gHotSpotVMTypes);
+        while (true) {
+            auto* typeNamePtr = *reinterpret_cast<const char**>(entry + gHotSpotVMTypeEntryTypeNameOffset);
+            auto* superclassNamePtr = *reinterpret_cast<const char**>(entry + gHotSpotVMTypeEntrySuperclassNameOffset);
+            if (typeNamePtr == nullptr && superclassNamePtr == nullptr) {
+                // end of list
+                break;
+            }
+            std::string typeName = typeNamePtr != nullptr ? std::string(typeNamePtr) : "";
+            if (typeName == "JVMFlag") {
+                jvmFlag_structSize = *reinterpret_cast<size_t*>(entry + gHotSpotVMTypeEntrySizeOffset);
+                break;
+            }
+            entry += gHotSpotVMTypeEntryArrayStride;
+        }
+    }
+    if (jvmFlag_structSize == 0) {
+        errorMsg = "Failed to find JVMFlag type entry or its size.";
+        return false;
+    }
+
+    // iterate JVMFlag::flags to find bytecode verification flags
+    {
+        auto* entry = static_cast<uint8_t*>(jvmFlag_flags);
+        for (size_t i = 0; i < jvmFlag_numFlags; i++) {
+            auto* namePtr = *reinterpret_cast<const char**>(entry + jvmFlag_name_offset);
+            auto* addrPtr = *reinterpret_cast<void**>(entry + jvmFlag_addr_offset);
+            if (namePtr != nullptr && addrPtr != nullptr) {
+                std::string name(namePtr);
+                if (name == "BytecodeVerificationLocal") {
+                    sHookInfo.pBytecodeVerificationLocal = static_cast<uint8_t*>(addrPtr);
+                } else if (name == "BytecodeVerificationRemote") {
+                    sHookInfo.pBytecodeVerificationRemote = static_cast<uint8_t*>(addrPtr);
+                }
+            }
+            entry += jvmFlag_structSize;
+        }
+    }
+
+    if (sHookInfo.pBytecodeVerificationLocal == nullptr || sHookInfo.pBytecodeVerificationRemote == nullptr) {
+        errorMsg = fmt::format("Failed to find bytecode verification flags, got local={}, remote={}",
+                               fmt::ptr(sHookInfo.pBytecodeVerificationLocal),
+                               fmt::ptr(sHookInfo.pBytecodeVerificationRemote));
         return false;
     }
 
@@ -168,7 +420,7 @@ std::vector<uint8_t> OpenJdkVmHookImpl::GetClassBytecode(JNIEnv* env, jclass kla
         {
             std::scoped_lock lock3(sHookInfo.dumpClassBytecodeMapMutex);
             for (auto& [name, data]: sHookInfo.classFileBytes) {
-                if (name == klassName) {
+                if (name.IsValid() && env->IsSameObject(name.Peek(), klass) == JNI_TRUE) {
                     bytecode = data;
                     break;
                 }
@@ -182,15 +434,16 @@ std::vector<uint8_t> OpenJdkVmHookImpl::GetClassBytecode(JNIEnv* env, jclass kla
         // remove class data from map
         {
             std::scoped_lock lock4(sHookInfo.dumpClassBytecodeMapMutex);
-            sHookInfo.classFileBytes.erase(klassName);
+            // just clear all, the whole function is locked by dumpClassBytecodeTransformMutex
+            sHookInfo.classFileBytes.clear();
         }
         // return bytecode
         return bytecode;
     }
 }
 
-bool OpenJdkVmHookImpl::RedefineClass(JNIEnv* env, jclass klass, const std::vector<uint8_t>& bytecode,
-                                      std::string& errorMsg) {
+bool OpenJdkVmHookImpl::RedefineClassV2(JNIEnv* env, jclass klass, const std::vector<uint8_t>& bytecode,
+                                        bool skipVerification, std::string& errorMsg) {
     using namespace jvmplant::util;
     if (!sHookInfo.initialized) {
         errorMsg = "OpenJdkVmHookImpl is not initialized";
@@ -208,7 +461,26 @@ bool OpenJdkVmHookImpl::RedefineClass(JNIEnv* env, jclass klass, const std::vect
     classDefinition.klass = klass;
     classDefinition.class_byte_count = static_cast<jint>(bytecode.size());
     classDefinition.class_bytes = bytecode.data();
+    auto* pVerifyLocal = sHookInfo.pBytecodeVerificationLocal;
+    auto* pVerifyRemote = sHookInfo.pBytecodeVerificationRemote;
+    std::scoped_lock lock(sHookInfo.redefineClassMutex);
+    std::optional<uint8_t> originalBytecodeVerificationLocal;
+    std::optional<uint8_t> originalBytecodeVerificationRemote;
+    if (skipVerification && pVerifyLocal != nullptr && pVerifyRemote != nullptr) {
+        // patch bytecode verification flags
+        originalBytecodeVerificationLocal = *pVerifyLocal;
+        originalBytecodeVerificationRemote = *pVerifyRemote;
+        *pVerifyLocal = 0;
+        *pVerifyRemote = 0;
+    }
     jvmtiError err = ti->RedefineClasses(1, &classDefinition);
+    // restore bytecode verification flags
+    if (pVerifyLocal != nullptr && originalBytecodeVerificationLocal.has_value()) {
+        *pVerifyLocal = originalBytecodeVerificationLocal.value();
+    }
+    if (pVerifyRemote != nullptr && originalBytecodeVerificationRemote.has_value()) {
+        *pVerifyRemote = originalBytecodeVerificationRemote.value();
+    }
     if (err != JVMTI_ERROR_NONE) {
         errorMsg = "Failed to request RedefineClasses: " + JvmtiErrorToSting(err);
         return false;

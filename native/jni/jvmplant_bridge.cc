@@ -297,12 +297,11 @@ JNIEXPORT jbyteArray JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_n
 
 /*
  * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeRedefineClass
- * Signature: (Ljava/lang/Class;[B)V
+ * Method:    nativeRedefineClassV2
+ * Signature: (Ljava/lang/Class;[BZ)V
  */
-JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeRedefineClass(JNIEnv* env, jclass,
-                                                                                             jclass klass,
-                                                                                             jbyteArray bytecode) {
+JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeRedefineClassV2(
+        JNIEnv* env, jclass, jclass klass, jbyteArray bytecode, jboolean skipVerification) {
     using namespace jvmplant::util;
     auto it = sJvmPlant;
     if (it == nullptr) {
@@ -330,7 +329,7 @@ JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeR
         return;
     }
     std::string errMsg;
-    if (!it->RedefineClass(env, klass, bytecodeVector, errMsg)) {
+    if (!it->RedefineClassV2(env, klass, bytecodeVector, static_cast<bool>(skipVerification), errMsg)) {
         ThrowIfNoPendingException(env, jvmplant::util::ExceptionNames::kRuntimeException, errMsg);
         return;
     }

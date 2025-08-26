@@ -17,40 +17,24 @@ JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeI
 
 /*
  * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeHookMethod
- * Signature: (Ljava/lang/reflect/Member;Ljava/lang/reflect/Member;Ljava/lang/Object;)Ljava/lang/reflect/Method;
+ * Method:    nativeGetClassFile
+ * Signature: (Ljava/lang/Class;)[B
  */
-JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeHookMethod
-  (JNIEnv *, jclass, jobject, jobject, jobject);
+JNIEXPORT jbyteArray JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassFile
+  (JNIEnv *, jclass, jclass);
 
 /*
  * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeIsMethodHooked
- * Signature: (Ljava/lang/reflect/Member;)Z
+ * Method:    nativeRedefineClassV2
+ * Signature: (Ljava/lang/Class;[BZ)V
  */
-JNIEXPORT jboolean JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeIsMethodHooked
-  (JNIEnv *, jclass, jobject);
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeUnhookMethod
- * Signature: (Ljava/lang/reflect/Member;)Z
- */
-JNIEXPORT jboolean JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeUnhookMethod
-  (JNIEnv *, jclass, jobject);
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeDeoptimizeMethod
- * Signature: (Ljava/lang/reflect/Member;)Z
- */
-JNIEXPORT jboolean JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeDeoptimizeMethod
-  (JNIEnv *, jclass, jobject);
+JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeRedefineClassV2
+  (JNIEnv *, jclass, jclass, jbyteArray, jboolean);
 
 /*
  * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
  * Method:    nativeGetClassInitializer
- * Signature: (Ljava/lang/Class;)Ljava/lang/reflect/Executable;
+ * Signature: (Ljava/lang/Class;)Ljava/lang/reflect/Constructor;
  */
 JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassInitializer
   (JNIEnv *, jclass, jclass);
@@ -70,22 +54,6 @@ JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nati
  */
 JNIEXPORT jobject JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_invokeNonVirtualArtMethodImpl
   (JNIEnv *, jclass, jobject, jstring, jclass, jboolean, jobject, jobjectArray);
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeGetClassFile
- * Signature: (Ljava/lang/Class;)[B
- */
-JNIEXPORT jbyteArray JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeGetClassFile
-  (JNIEnv *, jclass, jclass);
-
-/*
- * Class:     dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge
- * Method:    nativeRedefineClass
- * Signature: (Ljava/lang/Class;[B)V
- */
-JNIEXPORT void JNICALL Java_dev_tmpfs_jvmplant_impl_JvmPlantNativeBridge_nativeRedefineClass
-  (JNIEnv *, jclass, jclass, jbyteArray);
 
 #ifdef __cplusplus
 }

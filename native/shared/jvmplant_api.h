@@ -25,8 +25,8 @@ public:
 
     virtual std::vector<uint8_t> GetClassBytecode(JNIEnv* env, jclass klass, std::string& errorMsg) = 0;
 
-    virtual bool RedefineClass(JNIEnv* env, jclass klass, const std::vector<uint8_t>& bytecode,
-                               std::string& errorMsg) = 0;
+    virtual bool RedefineClassV2(JNIEnv* env, jclass klass, const std::vector<uint8_t>& bytecode, bool skipVerification,
+                                 std::string& errorMsg) = 0;
 
     /**
      * Get the native function pointer of a native method. This only works for native methods.

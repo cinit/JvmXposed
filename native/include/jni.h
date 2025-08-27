@@ -25,6 +25,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include "platform_compat.h"
 
 /* Primitive types that match up with Java equivalents. */
 typedef uint8_t  jboolean; /* unsigned 8 bits */
@@ -771,7 +772,7 @@ struct _JNIEnv {
     CALL_STATIC_TYPE(jfloat, Float)
     CALL_STATIC_TYPE(jdouble, Double)
 
-    __attribute__((no_stack_protector))
+    JVMPLANT_ATTRIBUTE_NO_STACK_PROTECTOR
     void CallStaticVoidMethod(jclass clazz, jmethodID methodID, ...)
     {
         va_list args;
@@ -1103,7 +1104,7 @@ jint JNI_CreateJavaVM(JavaVM**, JNIEnv**, void*);
 jint JNI_GetCreatedJavaVMs(JavaVM**, jsize, jsize*);
 
 #define JNIIMPORT
-#define JNIEXPORT  __attribute__ ((visibility ("default")))
+#define JNIEXPORT  JVMPLANT_ATTRIBUTE_VISIBILITY_DEFAULT
 #define JNICALL
 
 /*

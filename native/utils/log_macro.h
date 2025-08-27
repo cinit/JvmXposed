@@ -10,21 +10,34 @@
 #define STRINGIFY_(x) #x
 #define TOSTRING_(x) STRINGIFY_(x)
 
-#ifndef __FILE_NAME__
-#error "No __FILE_NAME__ defined"
+// Cross-platform filename extraction
+#ifdef _MSC_VER
+    // MSVC doesn't have __FILE_NAME__, so we extract it from __FILE__
+    #define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#elif defined(__GNUC__) || defined(__clang__)
+    // GCC and Clang support __FILE_NAME__ in newer versions
+    #ifdef __FILE_NAME__
+        #define __FILENAME__ __FILE_NAME__
+    #else
+        // Fallback for older GCC/Clang versions
+        #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+    #endif
+#else
+    // Unknown compiler - use __FILE__ as fallback
+    #define __FILENAME__ __FILE__
 #endif
 
 #define CHECK_1ARGS_(condition) \
     do { \
         if (!(condition)) [[unlikely]] { \
-            ::jvmplant::util::Abort("CHECK failed: " #condition " #" __FILE_NAME__ ":" TOSTRING_(__LINE__)); \
+            ::jvmplant::util::Abort("CHECK failed: " #condition " #" __FILENAME__ ":" TOSTRING_(__LINE__)); \
         } \
     } while (false)
 
 #define CHECK_2ARGS_(condition, msg) \
     do { \
         if (!(condition)) [[unlikely]] { \
-            ::jvmplant::util::Abort("CHECK failed: " #condition " #" __FILE_NAME__ ":" TOSTRING_(__LINE__) ": " msg); \
+            ::jvmplant::util::Abort("CHECK failed: " #condition " #" __FILENAME__ ":" TOSTRING_(__LINE__) ": " msg); \
         } \
     } while (false)
 

@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-#ifdef __WIN32
+#ifdef _WIN32
 #include <windows.h>
 #else
 #include <fcntl.h>
@@ -18,13 +18,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
 #endif
 
 namespace jvmplant {
 
 bool IsDebuggerAttached() {
-#ifdef __WIN32
+#ifdef _WIN32
     return IsDebuggerPresent() != 0;
 #else
     // check /proc/self/status TracerPid field
@@ -58,7 +57,7 @@ bool WaitForDebuggerMillis(uint64_t maxWaitMillis) {
         if (maxWaitMillis > 0 && waited >= maxWaitMillis) {
             return false;
         }
-#ifdef __WIN32
+#ifdef _WIN32
         Sleep(static_cast<DWORD>(waitInterval));
 #else
         usleep(waitInterval * 1000);

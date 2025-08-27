@@ -16,8 +16,10 @@
 #include <ranges>
 #include <unordered_map>
 
+#include "platform_compat.h"
+
 // for dlopen, dlsym, dlclose, LoadLibraryW, GetProcAddress, FreeLibrary
-#ifdef __WIN32
+#ifdef _WIN32
 #include <windows.h>
 #else
 #include <dlfcn.h>
@@ -44,7 +46,11 @@ public:
                 // failed to create global ref
                 env->ExceptionDescribe();
                 env->FatalError("Failed to create global reference");
+#ifdef _MSC_VER
+                __assume(0);
+#else
                 __builtin_unreachable();
+#endif
             }
         }
     }
@@ -169,7 +175,7 @@ static bool InitOpenJdkVmHookInfoLocked(JNIEnv* env, std::string& errorMsg) {
 
     // find address of bytecode verification flags
     void* libjvmHandle = nullptr;
-#ifdef __WIN32
+#ifdef _WIN32
     libjvmHandle = GetModuleHandleW(L"jvm.dll");
     if (libjvmHandle == nullptr) {
         errorMsg = fmt::format("Failed to get handle of jvm.dll: {}", GetLastError());
@@ -193,7 +199,7 @@ static bool InitOpenJdkVmHookInfoLocked(JNIEnv* env, std::string& errorMsg) {
         return addr;
     };
     std::unique_ptr<void, std::function<void(void*)>> libjvmCloser(libjvmHandle, [](void* handle) {
-#ifdef __WIN32
+#ifdef _WIN32
     /* GetModuleHandleW does not need to be freed */
 #else
         dlclose(handle);

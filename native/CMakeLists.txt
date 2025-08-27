@@ -255,13 +255,6 @@ if (MSVC)
     endif ()
 endif ()
 
-# Set output directory for all configurations
-set_target_properties(jvmplant PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-)
-
 # =============================================================================
 # Build Information
 # =============================================================================

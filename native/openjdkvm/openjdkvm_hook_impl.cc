@@ -191,7 +191,7 @@ static bool InitOpenJdkVmHookInfoLocked(JNIEnv* env, std::string& errorMsg) {
     std::function<void*(std::string_view)> fnGetSymbolAddress;
     fnGetSymbolAddress = [libjvmHandle](std::string_view name) -> void* {
         void* addr;
-#ifdef __WIN32
+#ifdef _WIN32
         addr = GetProcAddress(static_cast<HMODULE>(libjvmHandle), std::string(name).c_str());
 #else
         addr = dlsym(libjvmHandle, std::string(name).c_str());

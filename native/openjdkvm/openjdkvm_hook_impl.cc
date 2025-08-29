@@ -389,7 +389,7 @@ std::vector<uint8_t> OpenJdkVmHookImpl::GetClassBytecode(JNIEnv* env, jclass kla
         errorMsg = "class is null";
         return {};
     }
-    auto klassName = GetClassName(env, klass);
+    auto klassName = GetJavaClassName(env, klass);
     // replace '.' to '/' in class name
     std::ranges::replace(klassName, '.', '/');
     jvmtiEnv* ti = sHookInfo.ti;
@@ -459,7 +459,7 @@ bool OpenJdkVmHookImpl::RedefineClassV2(JNIEnv* env, jclass klass, const std::ve
         errorMsg = "class is null";
         return {};
     }
-    auto klassName = GetClassName(env, klass);
+    auto klassName = GetJavaClassName(env, klass);
     // replace '.' to '/' in class name
     std::ranges::replace(klassName, '.', '/');
     jvmtiEnv* ti = sHookInfo.ti;

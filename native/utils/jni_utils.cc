@@ -202,7 +202,7 @@ void ExtractWrappedValue(JNIEnv* env, jvalue& out, char type, jobject value) {
     }
 }
 
-jstring GetClassNameJ(JNIEnv* env, jclass klass) {
+jstring GetJavaClassNameJ(JNIEnv* env, jclass klass) {
     static jmethodID getName = nullptr;
     if (getName == nullptr) {
         jclass kClass = env->FindClass("java/lang/Class");
@@ -219,8 +219,8 @@ jstring GetClassNameJ(JNIEnv* env, jclass klass) {
     return name;
 }
 
-std::string GetClassName(JNIEnv* env, jclass klass) {
-    auto jname = GetClassNameJ(env, klass);
+std::string GetJavaClassName(JNIEnv* env, jclass klass) {
+    auto jname = GetJavaClassNameJ(env, klass);
     if (jname == nullptr || env->ExceptionCheck()) {
         return {};
     }
